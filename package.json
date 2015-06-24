@@ -1,0 +1,27 @@
+{
+  "name": "falcor-router-demo",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js 2>&1 | ./node_modules/.bin/bunyan"
+  },
+  "dependencies": {
+    "bunyan": "1.4.0",
+    "falcor-restify": "git+ssh://git@github.com/Netflix/falcor-restify.git",
+    "falcor-router": "git+ssh://git@github.com/Netflix/falcor-router.git",
+    "restify": "3.0.3",
+    "rx": "2.5.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yunong/falcor-router-demo.git"
+  },
+  "author": "yunong",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/yunong/falcor-router-demo/issues"
+  },
+  "homepage": "https://github.com/yunong/falcor-router-demo#readme"
+}

@@ -1,2 +1,4 @@
 # falcor-router-demo
-A demonstration of how to build a Router for the Netflix application
+```shell
+node index.js 2>&1 | ./node_modules/.bin/bunyan
+```
