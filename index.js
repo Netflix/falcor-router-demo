@@ -1,5 +1,30 @@
 'use strict';
 
+/*
+This Router example builds a virtual JSON object on the server with the following structure:
+
+{
+    genrelist: [
+        {
+            name: "Thrillers",
+            titles: [
+                // Reference to title by identifier
+                { $type: "ref", value: ["titlesById", 523] },
+                { $type: "ref", value: ["titlesById", 829] }
+            ]
+        }
+    ],
+    titlesById: {
+        523: {
+            name: "House of Cards"
+        },
+        829: {
+            name: "Orange is the New Black"
+        }
+    }
+}
+*/ 
+
 var bunyan = require('bunyan');
 var falcorPlugin = require('falcor-restify');
 var restify = require('restify');
@@ -12,6 +37,7 @@ var LOG = bunyan.createLogger({
     src: true
 });
 
+// Create a client for retrieving data from backend services
 var client = restify.createJsonClient({
     url: 'http://api-global.netflix.com/',
     log: LOG.child({
@@ -22,117 +48,121 @@ var client = restify.createJsonClient({
     version: '*'
 });
 
-var router = new Router([{
+var router = new Router([
+    {
     route: "genrelist[{integers:indices}].name",
-    get: function (pathSet) {
-        return rx.Observable.create(function subscribe(observer) {
-            var subscribed = true;
-
-            client.get('/apps/static/sample/genreLists',
-                       function (err, req, res, obj) {
-                if (!subscribed) {
-                    return;
-                }
-                if (err) {
-                    observer.onError(err);
-                } else {
-                    observer.onNext(obj);
-                    observer.onCompleted();
-                }
-            });
-
-            return function dispose() {
-                subscribed = false;
-            };
-        }).flatMap(function (genrelist) {
-            return rx.Observable.
-                fromArray(pathSet.indices).
-                map(function (index) {
-                    return {
-                        path: ['genrelist', index, 'name'],
-                        value: genrelist[index].name
+        get: function (pathSet) {
+            return rx.Observable.create(function subscribe(observer) {
+                var subscribed = true;
+    
+                client.get('/apps/static/sample/genreLists',
+                           function (err, req, res, obj) {
+                    if (!subscribed) {
+                        return;
                     }
-            });
-        });
-    }
-}, {
-    route: "genrelist[{integers:indices}].titles[{integers:titleIndices}]",
-    get: function (pathSet) {
-        return rx.Observable.create(function subscribe(observer) {
-            var subscribed = true;
-
-            client.get('/apps/static/sample/genreLists',
-                       function (err, req, res, obj) {
-                if (err) {
-                    req.log.error({err: err});
-                    observer.onError(err);
-                } else if (!subscribed) {
-                    return;
-                } else {
-                    observer.onNext(obj);
-                    observer.onCompleted();
-                }
-            });
-
-            return function dispose() {
-                subscribed = false;
-            };
-        }).flatMap(function (genrelist) {
-            return rx.Observable.
-                fromArray(pathSet.indices).
-                flatMap(function (index) {
-                    return rx.Observable.
-                        fromArray(pathSet.titleIndices).
-                        map(function (titleIndex) {
-                            var title = genrelist[index].titles[titleIndex];
-                            if (!title) {
-                                return { path: ["genrelist", index, "titles", titleIndex], value: { $type: "atom" } };
-                            }
-                            return {
-                                path: ['genrelist', index, 'titles', titleIndex],
-                                value: {
-                                    $type: 'ref',
-                                    value: ['titlesById', genrelist[index].titles[titleIndex].id]
-                                }
-                            }
-                        })
+                    if (err) {
+                        observer.onError(err);
+                    } else {
+                        observer.onNext(obj);
+                        observer.onCompleted();
+                    }
                 });
-        });
-    }
-}, {
-    route: "titlesById[{integers:titleIds}].name",
-    get: function (pathSet) {
-        return rx.Observable.create(function subscribe(observer) {
-            var subscribed = true;
-
-            client.get('/apps/static/sample/titles?ids=' + pathSet.titleIds.join(','),
-                       function (err, req, res, obj) {
-                if (!subscribed) {
-                    return;
-                }
-                if (err) {
-                    observer.onError(err);
-                } else {
-                    observer.onNext(obj);
-                    observer.onCompleted();
-                }
+    
+                return function dispose() {
+                    subscribed = false;
+                };
+            }).flatMap(function (genrelist) {
+                return rx.Observable.
+                    fromArray(pathSet.indices).
+                    map(function (index) {
+                        return {
+                            path: ['genrelist', index, 'name'],
+                            value: genrelist[index].name
+                        }
+                });
             });
-
-            return function dispose() {
-                subscribed = false;
-            };
-        }).flatMap(function (titlesList) {
-            return rx.Observable.
-                fromArray(pathSet.titleIds).
-                map(function (titleId, index) {
-                    return {
-                        path: ['titlesById', titleId, 'name'],
-                        value: titlesList[index].title
+        }
+    }, 
+    {
+        route: "genrelist[{integers:indices}].titles[{integers:titleIndices}]",
+        get: function (pathSet) {
+            return rx.Observable.create(function subscribe(observer) {
+                var subscribed = true;
+    
+                client.get('/apps/static/sample/genreLists',
+                           function (err, req, res, obj) {
+                    if (err) {
+                        req.log.error({err: err});
+                        observer.onError(err);
+                    } else if (!subscribed) {
+                        return;
+                    } else {
+                        observer.onNext(obj);
+                        observer.onCompleted();
                     }
-            })
-        });
+                });
+    
+                return function dispose() {
+                    subscribed = false;
+                };
+            }).flatMap(function (genrelist) {
+                return rx.Observable.
+                    fromArray(pathSet.indices).
+                    flatMap(function (index) {
+                        return rx.Observable.
+                            fromArray(pathSet.titleIndices).
+                            map(function (titleIndex) {
+                                var title = genrelist[index].titles[titleIndex];
+                                if (!title) {
+                                    return { path: ["genrelist", index, "titles", titleIndex], value: { $type: "atom" } };
+                                }
+                                return {
+                                    path: ['genrelist', index, 'titles', titleIndex],
+                                    value: {
+                                        $type: 'ref',
+                                        value: ['titlesById', genrelist[index].titles[titleIndex].id]
+                                    }
+                                }
+                            })
+                    });
+            });
+        }
+    }, 
+    {
+        route: "titlesById[{integers:titleIds}].name",
+        get: function (pathSet) {
+            return rx.Observable.create(function subscribe(observer) {
+                var subscribed = true;
+    
+                client.get('/apps/static/sample/titles?ids=' + pathSet.titleIds.join(','),
+                           function (err, req, res, obj) {
+                    if (!subscribed) {
+                        return;
+                    }
+                    if (err) {
+                        observer.onError(err);
+                    } else {
+                        observer.onNext(obj);
+                        observer.onCompleted();
+                    }
+                });
+    
+                return function dispose() {
+                    subscribed = false;
+                };
+            }).flatMap(function (titlesList) {
+                return rx.Observable.
+                    fromArray(pathSet.titleIds).
+                    map(function (titleId, index) {
+                        return {
+                            path: ['titlesById', titleId, 'name'],
+                            value: titlesList[index].title
+                        }
+                })
+            });
+        }
     }
-}]);
+]);
 
 var server = restify.createServer({
     log: LOG.child({
