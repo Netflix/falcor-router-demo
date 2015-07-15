@@ -6,7 +6,7 @@
 var model = new falcor.Model({
     source: new falcor.HttpDataSource('/model.json')
 });
-model.get('genrelist[0].titles[0].name').then(function (data) {
+model.get('genrelist[0..5].titles[0..5].name').then(function (data) {
     console.log(data);
 });
     </script>

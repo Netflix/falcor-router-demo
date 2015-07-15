@@ -84,7 +84,10 @@ var router = new Router([{
                     return rx.Observable.
                         fromArray(pathSet.titleIndices).
                         map(function (titleIndex) {
-                            console.trace('foo');
+                            var title = genrelist[index].titles[titleIndex];
+                            if (!title) {
+                                return { path: ["genrelist", index, "titles", titleIndex], value: { $type: "atom" } };
+                            }
                             return {
                                 path: ['genrelist', index, 'titles', titleIndex],
                                 value: {
