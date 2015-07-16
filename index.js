@@ -240,8 +240,8 @@ var router = new Router([
                         });
                     });
 
-                    return pathValuesTOJSONGraphEvelope(pathValues);
-                    //return pathValues;
+                    //return pathValuesTOJSONGraphEvelope(pathValues);
+                    return pathValues;
                 });
         }
     }, 
