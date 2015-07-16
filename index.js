@@ -88,7 +88,7 @@ function getJSON(url) {
                     reject(err);
                 }
                 else {
-                    resolve(obj);
+                    accept(obj);
                 }
             });
     });
@@ -119,15 +119,15 @@ function getJSON(url) {
 // }
 // Alternately the route could resolve to the following array of PathValues:
 // [
-//    { path: ["genrelist", 0, "name"] value: "Horror"},
-//    { path: ["genrelist", 1, "name"] value: "Thrillers"}
+//    { path: ["genrelist", 0, "name"], value: "Horror"},
+//    { path: ["genrelist", 1, "name"], value: "Thrillers"}
 // ]
 // When a route returns an array of PathValues, the Router mixes all of the 
 // values into a single JSON Graph response anyways, producing the equivalent
 // JSONGraphEnvelope.
 // [
-//    { path: ["genrelist", 0, "name"] value: "Horror"},
-//    { path: ["genrelist", 1, "name"] value: "Thrillers"}
+//    { path: ["genrelist", 0, "name"], value: "Horror"},
+//    { path: ["genrelist", 1, "name"], value: "Thrillers"}
 // ] ->
 // {
 //    jsonGraph: {
@@ -143,6 +143,29 @@ function getJSON(url) {
 // }
 // The Router's eventual response is a JSONGraphEnvelope with the superset of
 // all of the individual route JSONGraphEnvelope responses.
+
+//convert...
+function pathValuesTOJSONGraphEvelope(pathValues) {
+    var jsonGraph = {}
+    pathValues.forEach(function(pathValue) {
+        var path = pathValue.path
+        var value = pathValue.value
+        var node = jsonGraph
+        var parent = jsonGraph
+        path.slice(0, -1).forEach(function(key) {
+            node = node[key]
+            if (node == null || typeof node !== "object") {
+                node = parent[key] = {}
+            }
+            parent = node
+        })
+        node[path[path.length - 1]] = value
+    })
+    return {
+        jsonGraph: jsonGraph
+    }
+}
+
 var router = new Router([
     // Here's an example subset of the JSON Graph which this route simulates.
     // {
@@ -154,7 +177,7 @@ var router = new Router([
     // }
     {
         route: "genrelist[{integers:indices}].name",
-        get: function (pathSet) {
+        get: function (pathSet) {        
             // In this example, the pathSet could be ["genrelist", [0,1,2], "name"].
             // If that were the case, we would need to return a Promise of an
             // Array containing the following PathValues: 
@@ -195,7 +218,7 @@ var router = new Router([
     // }
     {
         route: "genrelist[{integers:indices}].titles[{integers:titleIndices}]",
-        get: function (pathSet) {
+        get: function (pathSet) {                        
             return getJSON('/apps/static/sample/genreLists').
                 then(function(genrelist) {
                     var pathValues = [];
@@ -217,7 +240,8 @@ var router = new Router([
                         });
                     });
 
-                    return pathValues;
+                    return pathValuesTOJSONGraphEvelope(pathValues);
+                    //return pathValues;
                 });
         }
     }, 
@@ -256,6 +280,7 @@ var router = new Router([
             //        }
             //    }
             // }
+                        
             var titleKeys = pathSet[2];
             return getJSON('/apps/static/sample/titles?ids=' + pathSet.titleIds.join(',')).
                 then(function(titlesList) {
