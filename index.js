@@ -1,5 +1,6 @@
 'use strict';
 
+
 /*
 This example uses the router to build a virtual JSON Graph object on the server 
 with the following structure:
@@ -59,6 +60,7 @@ var restify = require('restify');
 var rx = require('rx');
 var Router = require('falcor-router');
 var Promise = require('promise');
+var bodyParser = require("body-parser");
 
 var LOG = bunyan.createLogger({
     name: 'demo',
@@ -81,7 +83,7 @@ var client = restify.createJsonClient({
 function getJSON(url) {
     return new Promise(function(accept, reject) {
         client.get(
-            '/apps/static/sample/genreLists',
+            url,
             // The client helpfully parses the JSON into obj
             function (err, req, res, obj) {
                 if (err) {
@@ -167,6 +169,15 @@ function pathValuesTOJSONGraphEvelope(pathValues) {
 }
 
 var router = new Router([
+    
+    {
+        route: "titlesById[{integers:titleIds}].rating",
+        set: function (jsonGraph) {
+            return {
+                jsonGraph: jsonGraph
+            }
+        }
+    },    
     // Here's an example subset of the JSON Graph which this route simulates.
     // {
     //     genrelists: [
@@ -218,7 +229,7 @@ var router = new Router([
     // }
     {
         route: "genrelist[{integers:indices}].titles[{integers:titleIndices}]",
-        get: function (pathSet) {                        
+        get: function (pathSet) {                                    
             return getJSON('/apps/static/sample/genreLists').
                 then(function(genrelist) {
                     var pathValues = [];
@@ -280,11 +291,13 @@ var router = new Router([
             //        }
             //    }
             // }
-                        
-            var titleKeys = pathSet[2];
+
+            var titleKeys = pathSet[2];            
             return getJSON('/apps/static/sample/titles?ids=' + pathSet.titleIds.join(',')).
                 then(function(titlesList) {
-                    var titlesById = {};
+                    var response = {};
+                    var jsonGraph = response['jsonGraph'] = {};                    
+                    var titlesById = jsonGraph['titlesById'] = {};
                     pathSet.titleIds.forEach(function(titleId, index) {
                         var responseTitle = titlesList[index],
                             title = {},
@@ -302,8 +315,35 @@ var router = new Router([
                     });
 
                     // Returning a Promise<JSONGraphEnvelope>
-                    return { jsonGraph: titlesById };
+                    return response;
                 });
+        }
+    },
+    {
+        route: 'genrelist[{integers:titles}].titles.push',
+        call: function(callPath, args) {
+            // return {
+            //     paths: [['genrelist', 0, 'titles', 2]],
+            //     jsonGraph: {
+            //         generelist: {
+            //             0: {
+            //                 titles: {
+            //                     2: {
+            //                         $type: 'ref',
+            //                         value: ['titlesById', 1]
+            //                     }
+            //                 }
+            //             }
+            //         }
+            //     }
+            // }
+            return {
+                path: ['genrelist', 0, 'titles', 2],
+                value: {
+                    $type: 'ref',
+                    value: ['titlesById', 1]
+                }
+            }
         }
     }
 ]);
@@ -333,6 +373,8 @@ var server = restify.createServer({
 server.use(restify.requestLogger());
 server.use(restify.queryParser());
 
+server.use(restify.bodyParser({mapParams: true}));
+
 server.on('after', restify.auditLogger({
     log: LOG.child({
         component: 'audit'
@@ -345,6 +387,10 @@ server.on('uncaughtException', function (req, res, route, err) {
 });
 
 // Expose the
+server.post('/model.json', falcorPlugin(function (req, res, next) {
+    return router;
+}));
+
 server.get('/model.json', falcorPlugin(function (req, res, next) {
     return router;
 }));

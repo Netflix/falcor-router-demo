@@ -13,7 +13,8 @@
     "falcor-router": "git+ssh://git@github.com/Netflix/falcor-router.git",
     "promise": "^7.0.3",
     "restify": "3.0.3",
-    "rx": "2.5.3"
+    "rx": "2.5.3",
+    "body-parser": "~1.13.2"
   },
   "repository": {
     "type": "git",

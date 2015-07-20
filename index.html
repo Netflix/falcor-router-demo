@@ -3,12 +3,33 @@
     <script src="falcor.browser.js">
     </script>
     <script>
+var $ref = falcor.Model.ref
 var model = new falcor.Model({
     source: new falcor.HttpDataSource('/model.json')
 });
-model.get('genrelist[0..5].titles[0..5].name').then(function (data) {
-    console.log(data);
-});
+var log = console.log.bind(console)
+var error = console.error.bind(console)
+
+//model.get('genrelist[0..5].titles[0..5].title').then(function (data) {
+//model.get('genrelist[0].titles[0..1]["title", "year"]').then(function (data) {
+//model.get('titlesById[0..1]["title", "year"]').then(function (data) {
+// model.get('genrelist[0..1].titles[0..1]["title", "rating", "year", "description", "boxshot"]').then(function (data) {
+//     console.log(JSON.stringify(data, null, 3));
+// });
+
+// model.call('genrelist[0].titles.push', [$ref('titlesById[1]')]).then(function (data) {
+//     console.log(JSON.stringify(data, null, 3));
+// }, error);
+    
+model.call('genrelist[0].titles.nonexistingfuction', [$ref('titlesById[1]')]).then(function (data) {
+    console.log(JSON.stringify(data, null, 3));
+}, error);    
+    
+// model.setValue('titlesById[0].rating', 5).then(function (data) {
+//     console.log(data);
+// }, function(e) {
+//     console.log(e)
+// });
     </script>
 </head>
 <body>
