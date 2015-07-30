@@ -1,37 +1,55 @@
 <html>
 <head>
-    <script src="falcor.browser.js">
-    </script>
-    <script>
+<script src="falcor.browser.js"></script>
+<script>
+
 var $ref = falcor.Model.ref
 var model = new falcor.Model({
     source: new falcor.HttpDataSource('/model.json')
 });
+
+//logging:
 var log = console.log.bind(console)
+var jlog = function(x) { console.log(JSON.stringify(x, null, 3)) } 
 var error = console.error.bind(console)
+var jerror = function(x) { console.error(JSON.stringify(x, null, 3)) }
 
-//model.get('genrelist[0..5].titles[0..5].title').then(function (data) {
-//model.get('genrelist[0].titles[0..1]["title", "year"]').then(function (data) {
-//model.get('titlesById[0..1]["title", "year"]').then(function (data) {
-// model.get('genrelist[0..1].titles[0..1]["title", "rating", "year", "description", "boxshot"]').then(function (data) {
-//     console.log(JSON.stringify(data, null, 3));
-// });
 
-// model.call('genrelist[0].titles.push', [$ref('titlesById[1]')]).then(function (data) {
-//     console.log(JSON.stringify(data, null, 3));
-// }, error);
+//some examples:
+// model.get('genrelist[0..5].titles[0..5].name').then(jlog)
+
+// model.get('genrelist[0..1].titles[0..1]["title", "rating", "year", "description", "boxshot"]').then(jlog)
+
+// model.getValue('titlesById[4].rating').then(jlog, jerror)
+
+// model.setValue('titlesById[26].rating', 26).then(jlog, jerror)
+// model.getValue('titlesById[26].rating').then(jlog, jerror)
+
+// model.getValue('titlesById[1..2].description').then(jlog)
+
+// model.getValue('titlesById[2,4]["description", "name"]').then(jlog, jerror)
+
+// model.get('genrelist[4,5].name').subscribe(jlog, jerror)
+
+// model.get('genrelist[0].titles[0]').subscribe(jlog, jerror)
+
+// model.call('genrelist[0].titles.push', [$ref('titlesById[1]')]).then(jlog, jerror);
     
-model.call('genrelist[0].titles.nonexistingfuction', [$ref('titlesById[1]')]).then(function (data) {
-    console.log(JSON.stringify(data, null, 3));
-}, error);    
-    
-// model.setValue('titlesById[0].rating', 5).then(function (data) {
-//     console.log(data);
-// }, function(e) {
-//     console.log(e)
-// });
-    </script>
+
+//set clear authorization cookie:   
+function setCookie() {
+    document.cookie = "userId=1";
+}
+function clearCookie() {
+    document.cookie = "userId=0;expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+}
+
+</script>
 </head>
+<input type="button" onclick="setCookie()" value="set cookie" />
+<input type="button" onclick="clearCookie()" value="clear cookie" />
+
+
 <body>
 </body>
 </html>
