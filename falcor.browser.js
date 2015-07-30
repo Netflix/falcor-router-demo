@@ -2292,10 +2292,12 @@ GetRequest.prototype.getSourceObserver = function getSourceObserver(observer) {
 
             model._path = empty_array;
 
-            set_json_graph_as_json_dense(model, [{
+            var result = set_json_graph_as_json_dense(model, [{
                 paths: paths,
                 jsonGraph: jsonGraphEnvelope.jsonGraph
             }], empty_array, errorSelector, comparator);
+
+            jsonGraphEnvelope.paths = result.requestedPaths.concat(result.errors.map(getPath));
 
             model._path = bound;
 
@@ -2321,6 +2323,10 @@ GetRequest.prototype.getSourceObserver = function getSourceObserver(observer) {
         }
     ));
 };
+
+function getPath(pv) {
+    return pv.path;
+}
 
 module.exports = GetRequest;
 
@@ -2762,10 +2768,12 @@ SetRequest.prototype.getSourceObserver = function getSourceObserver(observer) {
 
             model._path = empty_array;
 
-            set_json_graph_as_json_dense(model, [{
+            var result = set_json_graph_as_json_dense(model, [{
                 paths: paths,
                 jsonGraph: jsonGraphEnvelope.jsonGraph
             }], empty_array, errorSelector, comparator);
+
+            jsonGraphEnvelope.paths = result.requestedPaths.concat(result.errors.map(getPath));
 
             model._path = bound;
 
@@ -2791,6 +2799,10 @@ SetRequest.prototype.getSourceObserver = function getSourceObserver(observer) {
         }
     ));
 };
+
+function getPath(pv) {
+    return pv.path;
+}
 
 module.exports = SetRequest;
 
@@ -2820,7 +2832,7 @@ CallResponse.prototype.invokeSourceRequest = function invokeSourceRequest(model)
     return this;
 };
 
-CallResponse.prototype.ensureCollect = function ensureCollect(model, initialVersion, pendingPromiseID) {
+CallResponse.prototype.ensureCollect = function ensureCollect(model) {
     return this;
 };
 
@@ -3356,18 +3368,12 @@ IdempotentResponse.prototype.invokeSourceRequest = function invokeSourceRequest(
     return this;
 };
 
-IdempotentResponse.prototype.ensureCollect = function ensureCollect(model, initialVersion) {
+IdempotentResponse.prototype.ensureCollect = function ensureCollect(model) {
 
     var ensured = this["finally"](function ensureCollect() {
 
         var modelRoot = model._root;
         var modelCache = model._cache;
-        var newVersion = modelCache[__version];
-        var rootChangeHandler = modelRoot.onChange;
-
-        if(rootChangeHandler && initialVersion !== newVersion) {
-            rootChangeHandler();
-        }
 
         modelRoot.collectionScheduler.schedule(function collectThisPass() {
             collect_lru(modelRoot, modelRoot.expired, get_size(modelCache), model._maxSize, model._collectRatio);
@@ -3449,7 +3455,6 @@ var is_json_envelope = require(102);
 var is_json_graph_envelope = require(103);
 
 var noop = require(109);
-var __version = require(44);
 
 var jsongMixin = { outputFormat: { value: "AsJSONG" } };
 var valuesMixin = { outputFormat: { value: "AsValues" } };
@@ -3561,13 +3566,13 @@ function subscribeToResponse(observer) {
     return (response
         .initialize()
         .invokeSourceRequest(model)
-        .ensureCollect(model, model._cache[__version])
+        .ensureCollect(model)
         .subscribe(observer));
 };
 
 module.exports = ModelResponse;
 
-},{"101":101,"102":102,"103":103,"104":104,"105":105,"109":109,"29":29,"298":298,"44":44,"79":79,"80":80,"81":81,"82":82,"83":83}],60:[function(require,module,exports){
+},{"101":101,"102":102,"103":103,"104":104,"105":105,"109":109,"29":29,"298":298,"79":79,"80":80,"81":81,"82":82,"83":83}],60:[function(require,module,exports){
 var Rx = require(298);
 var Observable = Rx.Observable;
 var Disposable = Rx.Disposable;
@@ -3844,6 +3849,7 @@ module.exports = set_cache;
 
 var $error = require(126);
 var $atom = require(125);
+var __version = require(44);
 
 var clone = require(84);
 var array_clone = require(79);
@@ -3877,6 +3883,8 @@ var _json = positions.json;
  */
 function set_cache(model, pathmap, error_selector) {
 
+    var modelRoot = model._root;
+
     var roots = options([], model, error_selector);
     var nodes = roots.nodes;
     var parents = array_clone(nodes);
@@ -3887,6 +3895,12 @@ function set_cache(model, pathmap, error_selector) {
     roots[_cache] = roots.root;
 
     walk_path_map(onNode, onEdge, pathmap, keys_stack, 0, roots, parents, nodes, requested, optimized);
+
+    var rootChangeHandler = modelRoot.onChange;
+
+    if(rootChangeHandler) {
+        rootChangeHandler();
+    }
 
     return model;
 }
@@ -3939,10 +3953,11 @@ function onEdge(pathmap, keys_stack, depth, roots, parents, nodes, requested, op
     }
 }
 
-},{"104":104,"111":111,"114":114,"116":116,"122":122,"123":123,"124":124,"125":125,"126":126,"131":131,"48":48,"79":79,"84":84,"91":91,"95":95,"96":96}],65:[function(require,module,exports){
+},{"104":104,"111":111,"114":114,"116":116,"122":122,"123":123,"124":124,"125":125,"126":126,"131":131,"44":44,"48":48,"79":79,"84":84,"91":91,"95":95,"96":96}],65:[function(require,module,exports){
 module.exports = set_json_graph_as_json_dense;
 
 var $ref = require(127);
+var __version = require(44);
 
 var clone = require(84);
 var array_clone = require(79);
@@ -3966,6 +3981,10 @@ var _jsong = positions.jsong;
 var _json = positions.json;
 
 function set_json_graph_as_json_dense(model, envelopes, values, error_selector, comparator) {
+
+    var modelRoot = model._root;
+    var modelCache = model._cache;
+    var initialVersion = modelCache[__version];
 
     var roots = [];
     roots.offset = model._path.length;
@@ -4017,6 +4036,13 @@ function set_json_graph_as_json_dense(model, envelopes, values, error_selector, 
                 delete json.json;
             }
         }
+    }
+
+    var newVersion = modelCache[__version];
+    var rootChangeHandler = modelRoot.onChange;
+
+    if(rootChangeHandler && initialVersion !== newVersion) {
+        rootChangeHandler();
     }
 
     return {
@@ -4101,10 +4127,11 @@ function onEdge(pathset, depth, roots, parents, nodes, requested, optimized, key
         roots.hasValue = true;
     }
 }
-},{"104":104,"108":108,"111":111,"114":114,"117":117,"119":119,"120":120,"127":127,"132":132,"79":79,"84":84,"95":95}],66:[function(require,module,exports){
+},{"104":104,"108":108,"111":111,"114":114,"117":117,"119":119,"120":120,"127":127,"132":132,"44":44,"79":79,"84":84,"95":95}],66:[function(require,module,exports){
 module.exports = set_json_graph_as_json_graph;
 
 var $ref = require(127);
+var __version = require(44);
 
 var clone = require(85);
 var array_clone = require(79);
@@ -4130,6 +4157,10 @@ var _jsong = positions.jsong;
 var _json = positions.json;
 
 function set_json_graph_as_json_graph(model, envelopes, values, error_selector, comparator) {
+
+    var modelRoot = model._root;
+    var modelCache = model._cache;
+    var initialVersion = modelCache[__version];
 
     var roots = [];
     roots.offset = 0;
@@ -4169,6 +4200,13 @@ function set_json_graph_as_json_graph(model, envelopes, values, error_selector, 
     } else {
         delete json.jsonGraph;
         delete json.paths;
+    }
+
+    var newVersion = modelCache[__version];
+    var rootChangeHandler = modelRoot.onChange;
+
+    if(rootChangeHandler && initialVersion !== newVersion) {
+        rootChangeHandler();
     }
 
     return {
@@ -4265,10 +4303,11 @@ function onEdge(pathset, depth, roots, parents, nodes, requested, optimized, key
     }
     roots.hasValue = true;
 }
-},{"104":104,"108":108,"111":111,"114":114,"117":117,"119":119,"120":120,"127":127,"132":132,"48":48,"79":79,"85":85,"95":95}],67:[function(require,module,exports){
+},{"104":104,"108":108,"111":111,"114":114,"117":117,"119":119,"120":120,"127":127,"132":132,"44":44,"48":48,"79":79,"85":85,"95":95}],67:[function(require,module,exports){
 module.exports = set_json_graph_as_json_sparse;
 
 var $ref = require(127);
+var __version = require(44);
 
 var clone = require(84);
 var array_clone = require(79);
@@ -4292,6 +4331,10 @@ var _jsong = positions.jsong;
 var _json = positions.json;
 
 function set_json_graph_as_json_sparse(model, envelopes, values, error_selector, comparator) {
+
+    var modelRoot = model._root;
+    var modelCache = model._cache;
+    var initialVersion = modelCache[__version];
 
     var roots = [];
     roots.offset = model._path.length;
@@ -4329,6 +4372,13 @@ function set_json_graph_as_json_sparse(model, envelopes, values, error_selector,
         json.json = roots[_json];
     } else {
         delete json.json;
+    }
+
+    var newVersion = modelCache[__version];
+    var rootChangeHandler = modelRoot.onChange;
+
+    if(rootChangeHandler && initialVersion !== newVersion) {
+        rootChangeHandler();
     }
 
     return {
@@ -4421,10 +4471,11 @@ function onEdge(pathset, depth, roots, parents, nodes, requested, optimized, key
         roots.hasValue = true;
     }
 }
-},{"104":104,"108":108,"111":111,"114":114,"117":117,"119":119,"120":120,"127":127,"132":132,"79":79,"84":84,"95":95}],68:[function(require,module,exports){
+},{"104":104,"108":108,"111":111,"114":114,"117":117,"119":119,"120":120,"127":127,"132":132,"44":44,"79":79,"84":84,"95":95}],68:[function(require,module,exports){
 module.exports = set_json_graph_as_json_values;
 
 var $ref = require(127);
+var __version = require(44);
 
 var clone = require(84);
 var array_clone = require(79);
@@ -4449,6 +4500,10 @@ var _jsong = positions.jsong;
 var _json = positions.json;
 
 function set_json_graph_as_json_values(model, envelopes, onNext, error_selector, comparator) {
+
+    var modelRoot = model._root;
+    var modelCache = model._cache;
+    var initialVersion = modelCache[__version];
 
     var roots = [];
     roots.offset = model._path.length;
@@ -4477,6 +4532,13 @@ function set_json_graph_as_json_values(model, envelopes, onNext, error_selector,
             var pathset = pathsets[index2];
             walk_path_set(onNode, onEdge, pathset, 0, roots, parents, nodes, requested, optimized);
         }
+    }
+
+    var newVersion = modelCache[__version];
+    var rootChangeHandler = modelRoot.onChange;
+
+    if(rootChangeHandler && initialVersion !== newVersion) {
+        rootChangeHandler();
     }
 
     return {
@@ -4547,12 +4609,13 @@ function onEdge(pathset, depth, roots, parents, nodes, requested, optimized, key
         });
     }
 }
-},{"104":104,"108":108,"111":111,"114":114,"117":117,"119":119,"120":120,"127":127,"132":132,"79":79,"83":83,"84":84,"95":95}],69:[function(require,module,exports){
+},{"104":104,"108":108,"111":111,"114":114,"117":117,"119":119,"120":120,"127":127,"132":132,"44":44,"79":79,"83":83,"84":84,"95":95}],69:[function(require,module,exports){
 module.exports = set_json_sparse_as_json_dense;
 
 var $ref = require(127);
 var $error = require(126);
 var $atom = require(125);
+var __version = require(44);
 
 var clone = require(84);
 var array_clone = require(79);
@@ -4580,6 +4643,10 @@ var _jsong = positions.jsong;
 var _json = positions.json;
 
 function set_json_sparse_as_json_dense(model, pathmaps, values, error_selector, comparator) {
+
+    var modelRoot = model._root;
+    var modelCache = model._cache;
+    var initialVersion = modelCache[__version];
 
     var roots = options([], model, error_selector, comparator);
     var index = -1;
@@ -4618,6 +4685,13 @@ function set_json_sparse_as_json_dense(model, pathmaps, values, error_selector, 
         } else if (is_object(json)) {
             delete json.json;
         }
+    }
+
+    var newVersion = modelCache[__version];
+    var rootChangeHandler = modelRoot.onChange;
+
+    if(rootChangeHandler && initialVersion !== newVersion) {
+        rootChangeHandler();
     }
 
     return {
@@ -4721,12 +4795,13 @@ function onEdge(pathmap, keys_stack, depth, roots, parents, nodes, requested, op
         roots.hasValue = true;
     }
 }
-},{"104":104,"111":111,"114":114,"116":116,"117":117,"119":119,"122":122,"123":123,"124":124,"125":125,"126":126,"127":127,"131":131,"79":79,"84":84,"91":91,"95":95,"96":96}],70:[function(require,module,exports){
+},{"104":104,"111":111,"114":114,"116":116,"117":117,"119":119,"122":122,"123":123,"124":124,"125":125,"126":126,"127":127,"131":131,"44":44,"79":79,"84":84,"91":91,"95":95,"96":96}],70:[function(require,module,exports){
 module.exports = set_json_sparse_as_json_graph;
 
 var $ref = require(127);
 var $error = require(126);
 var $atom = require(125);
+var __version = require(44);
 
 var clone = require(85);
 var array_clone = require(79);
@@ -4757,6 +4832,10 @@ var _json = positions.json;
 
 function set_json_sparse_as_json_graph(model, pathmaps, values, error_selector, comparator) {
 
+    var modelRoot = model._root;
+    var modelCache = model._cache;
+    var initialVersion = modelCache[__version];
+
     var roots = options([], model, error_selector, comparator);
     var index = -1;
     var count = pathmaps.length;
@@ -4783,6 +4862,13 @@ function set_json_sparse_as_json_graph(model, pathmaps, values, error_selector, 
     } else {
         delete json.jsonGraph;
         delete json.paths;
+    }
+
+    var newVersion = modelCache[__version];
+    var rootChangeHandler = modelRoot.onChange;
+
+    if(rootChangeHandler && initialVersion !== newVersion) {
+        rootChangeHandler();
     }
 
     return {
@@ -4897,12 +4983,13 @@ function onEdge(pathmap, keys_stack, depth, roots, parents, nodes, requested, op
         roots.hasValue = true;
     }
 }
-},{"104":104,"111":111,"114":114,"116":116,"117":117,"119":119,"122":122,"123":123,"124":124,"125":125,"126":126,"127":127,"130":130,"48":48,"79":79,"85":85,"91":91,"95":95,"96":96}],71:[function(require,module,exports){
+},{"104":104,"111":111,"114":114,"116":116,"117":117,"119":119,"122":122,"123":123,"124":124,"125":125,"126":126,"127":127,"130":130,"44":44,"48":48,"79":79,"85":85,"91":91,"95":95,"96":96}],71:[function(require,module,exports){
 module.exports = set_json_sparse_as_json_sparse;
 
 var $ref = require(127);
 var $error = require(126);
 var $atom = require(125);
+var __version = require(44);
 
 var clone = require(84);
 var array_clone = require(79);
@@ -4931,6 +5018,10 @@ var _json = positions.json;
 
 function set_json_sparse_as_json_sparse(model, pathmaps, values, error_selector, comparator) {
 
+    var modelRoot = model._root;
+    var modelCache = model._cache;
+    var initialVersion = modelCache[__version];
+
     var roots = options([], model, error_selector, comparator);
     var index = -1;
     var count = pathmaps.length;
@@ -4955,6 +5046,13 @@ function set_json_sparse_as_json_sparse(model, pathmaps, values, error_selector,
         json.json = roots[_json];
     } else {
         delete json.json;
+    }
+
+    var newVersion = modelCache[__version];
+    var rootChangeHandler = modelRoot.onChange;
+
+    if(rootChangeHandler && initialVersion !== newVersion) {
+        rootChangeHandler();
     }
 
     return {
@@ -5062,11 +5160,12 @@ function onEdge(pathmap, keys_stack, depth, roots, parents, nodes, requested, op
         roots.hasValue = true;
     }
 }
-},{"104":104,"111":111,"114":114,"116":116,"117":117,"119":119,"122":122,"123":123,"124":124,"125":125,"126":126,"127":127,"131":131,"79":79,"84":84,"91":91,"95":95,"96":96}],72:[function(require,module,exports){
+},{"104":104,"111":111,"114":114,"116":116,"117":117,"119":119,"122":122,"123":123,"124":124,"125":125,"126":126,"127":127,"131":131,"44":44,"79":79,"84":84,"91":91,"95":95,"96":96}],72:[function(require,module,exports){
 module.exports = set_path_map_as_json_values;
 
 var $error = require(126);
 var $atom = require(125);
+var __version = require(44);
 
 var clone = require(84);
 var array_clone = require(79);
@@ -5095,6 +5194,10 @@ var _json = positions.json;
 
 function set_path_map_as_json_values(model, pathmaps, onNext, error_selector, comparator) {
 
+    var modelRoot = model._root;
+    var modelCache = model._cache;
+    var initialVersion = modelCache[__version];
+
     var roots = options([], model, error_selector, comparator);
     var index = -1;
     var count = pathmaps.length;
@@ -5109,6 +5212,13 @@ function set_path_map_as_json_values(model, pathmaps, onNext, error_selector, co
     while (++index < count) {
         var pathmap = pathmaps[index].json;
         walk_path_map(onNode, onEdge, pathmap, keys_stack, 0, roots, parents, nodes, requested, optimized);
+    }
+
+    var newVersion = modelCache[__version];
+    var rootChangeHandler = modelRoot.onChange;
+
+    if(rootChangeHandler && initialVersion !== newVersion) {
+        rootChangeHandler();
     }
 
     return {
@@ -5202,12 +5312,13 @@ function onEdge(pathmap, keys_stack, depth, roots, parents, nodes, requested, op
         });
     }
 }
-},{"104":104,"111":111,"114":114,"116":116,"117":117,"119":119,"122":122,"123":123,"124":124,"125":125,"126":126,"131":131,"79":79,"84":84,"91":91,"95":95,"96":96}],73:[function(require,module,exports){
+},{"104":104,"111":111,"114":114,"116":116,"117":117,"119":119,"122":122,"123":123,"124":124,"125":125,"126":126,"131":131,"44":44,"79":79,"84":84,"91":91,"95":95,"96":96}],73:[function(require,module,exports){
 module.exports = set_json_values_as_json_dense;
 
 var $ref = require(127);
 var $error = require(126);
 var $atom = require(125);
+var __version = require(44);
 
 var clone = require(84);
 var array_clone = require(79);
@@ -5237,6 +5348,10 @@ var _jsong = positions.jsong;
 var _json = positions.json;
 
 function set_json_values_as_json_dense(model, pathvalues, values, error_selector, comparator) {
+
+    var modelRoot = model._root;
+    var modelCache = model._cache;
+    var initialVersion = modelCache[__version];
 
     var roots = options([], model, error_selector, comparator);
     var index = -1;
@@ -5276,6 +5391,13 @@ function set_json_values_as_json_dense(model, pathvalues, values, error_selector
         } else if (is_object(json)) {
             delete json.json;
         }
+    }
+
+    var newVersion = modelCache[__version];
+    var rootChangeHandler = modelRoot.onChange;
+
+    if(rootChangeHandler && initialVersion !== newVersion) {
+        rootChangeHandler();
     }
 
     return {
@@ -5392,12 +5514,13 @@ function onEdge(pathset, depth, roots, parents, nodes, requested, optimized, key
         roots.hasValue = true;
     }
 }
-},{"104":104,"111":111,"114":114,"116":116,"117":117,"119":119,"120":120,"122":122,"123":123,"124":124,"125":125,"126":126,"127":127,"133":133,"79":79,"84":84,"91":91,"95":95,"96":96,"99":99}],74:[function(require,module,exports){
+},{"104":104,"111":111,"114":114,"116":116,"117":117,"119":119,"120":120,"122":122,"123":123,"124":124,"125":125,"126":126,"127":127,"133":133,"44":44,"79":79,"84":84,"91":91,"95":95,"96":96,"99":99}],74:[function(require,module,exports){
 module.exports = set_json_values_as_json_graph;
 
 var $ref = require(127);
 var $error = require(126);
 var $atom = require(125);
+var __version = require(44);
 
 var clone = require(85);
 var array_clone = require(79);
@@ -5430,6 +5553,10 @@ var _json = positions.json;
 
 function set_json_values_as_json_graph(model, pathvalues, values, error_selector, comparator) {
 
+    var modelRoot = model._root;
+    var modelCache = model._cache;
+    var initialVersion = modelCache[__version];
+
     var roots = options([], model, error_selector, comparator);
     var index = -1;
     var count = pathvalues.length;
@@ -5459,6 +5586,13 @@ function set_json_values_as_json_graph(model, pathvalues, values, error_selector
     } else {
         delete json.jsonGraph;
         delete json.paths;
+    }
+
+    var newVersion = modelCache[__version];
+    var rootChangeHandler = modelRoot.onChange;
+
+    if(rootChangeHandler && initialVersion !== newVersion) {
+        rootChangeHandler();
     }
 
     return {
@@ -5585,12 +5719,13 @@ function onEdge(pathset, depth, roots, parents, nodes, requested, optimized, key
         roots.hasValue = true;
     }
 }
-},{"104":104,"111":111,"114":114,"116":116,"117":117,"119":119,"120":120,"122":122,"123":123,"124":124,"125":125,"126":126,"127":127,"132":132,"48":48,"79":79,"85":85,"91":91,"95":95,"96":96,"99":99}],75:[function(require,module,exports){
+},{"104":104,"111":111,"114":114,"116":116,"117":117,"119":119,"120":120,"122":122,"123":123,"124":124,"125":125,"126":126,"127":127,"132":132,"44":44,"48":48,"79":79,"85":85,"91":91,"95":95,"96":96,"99":99}],75:[function(require,module,exports){
 module.exports = set_json_values_as_json_sparse;
 
 var $ref = require(127);
 var $error = require(126);
 var $atom = require(125);
+var __version = require(44);
 
 var clone = require(84);
 var array_clone = require(79);
@@ -5621,6 +5756,10 @@ var _json = positions.json;
 
 function set_json_values_as_json_sparse(model, pathvalues, values, error_selector, comparator) {
 
+    var modelRoot = model._root;
+    var modelCache = model._cache;
+    var initialVersion = modelCache[__version];
+
     var roots = options([], model, error_selector, comparator);
     var index = -1;
     var count = pathvalues.length;
@@ -5648,6 +5787,13 @@ function set_json_values_as_json_sparse(model, pathvalues, values, error_selecto
         json.json = roots[_json];
     } else {
         delete json.json;
+    }
+
+    var newVersion = modelCache[__version];
+    var rootChangeHandler = modelRoot.onChange;
+
+    if(rootChangeHandler && initialVersion !== newVersion) {
+        rootChangeHandler();
     }
 
     return {
@@ -5767,11 +5913,12 @@ function onEdge(pathset, depth, roots, parents, nodes, requested, optimized, key
         roots.hasValue = true;
     }
 }
-},{"104":104,"111":111,"114":114,"116":116,"117":117,"119":119,"120":120,"122":122,"123":123,"124":124,"125":125,"126":126,"127":127,"133":133,"79":79,"84":84,"91":91,"95":95,"96":96,"99":99}],76:[function(require,module,exports){
+},{"104":104,"111":111,"114":114,"116":116,"117":117,"119":119,"120":120,"122":122,"123":123,"124":124,"125":125,"126":126,"127":127,"133":133,"44":44,"79":79,"84":84,"91":91,"95":95,"96":96,"99":99}],76:[function(require,module,exports){
 module.exports = set_json_values_as_json_values;
 
 var $error = require(126);
 var $atom = require(125);
+var __version = require(44);
 
 var clone = require(84);
 var array_clone = require(79);
@@ -5807,6 +5954,10 @@ var _json = positions.json;
  */
 function set_json_values_as_json_values(model, pathvalues, onNext, error_selector, comparator) {
 
+    var modelRoot = model._root;
+    var modelCache = model._cache;
+    var initialVersion = modelCache[__version];
+
     // TODO: CR Rename options to setup set state
     var roots = options([], model, error_selector, comparator);
     var pathsIndex = -1;
@@ -5825,6 +5976,13 @@ function set_json_values_as_json_values(model, pathvalues, onNext, error_selecto
         var pathset = pv.path;
         roots.value = pv.value;
         walk_path_set(onNode, onValueType, pathset, 0, roots, parents, nodes, requestedPath, optimizedPath);
+    }
+
+    var newVersion = modelCache[__version];
+    var rootChangeHandler = modelRoot.onChange;
+
+    if(rootChangeHandler && initialVersion !== newVersion) {
+        rootChangeHandler();
     }
 
     return {
@@ -5936,7 +6094,7 @@ function onValueType(pathset, depth, roots, parents, nodes, requested, optimized
     }
 }
 
-},{"104":104,"111":111,"114":114,"116":116,"117":117,"119":119,"120":120,"122":122,"123":123,"124":124,"125":125,"126":126,"133":133,"79":79,"84":84,"91":91,"95":95,"96":96,"99":99}],77:[function(require,module,exports){
+},{"104":104,"111":111,"114":114,"116":116,"117":117,"119":119,"120":120,"122":122,"123":123,"124":124,"125":125,"126":126,"133":133,"44":44,"79":79,"84":84,"91":91,"95":95,"96":96,"99":99}],77:[function(require,module,exports){
 var $error = require(126);
 var pathSyntax = require(282);
 var get_type = require(94);
@@ -8643,251 +8801,8 @@ arguments[4][53][0].apply(exports,arguments)
 },{"177":177,"190":190,"193":193,"218":218,"233":233,"243":243,"298":298,"53":53}],193:[function(require,module,exports){
 arguments[4][54][0].apply(exports,arguments)
 },{"191":191,"204":204,"212":212,"221":221,"298":298,"54":54}],194:[function(require,module,exports){
-var Rx = require(298);
-var Observable = Rx.Observable;
-var Disposable = Rx.Disposable;
-var SerialDisposable = Rx.SerialDisposable;
-var CompositeDisposable = Rx.CompositeDisposable;
-
-var ModelResponse = require(198);
-
-var pathSyntax = require(282);
-
-var $ref = require(266);
-
-function CallResponse(subscribe) {
-    Observable.call(this, subscribe || subscribeToResponse);
-}
-
-CallResponse.create = ModelResponse.create;
-
-CallResponse.prototype = Object.create(Observable.prototype);
-CallResponse.prototype.constructor = CallResponse;
-
-CallResponse.prototype.invokeSourceRequest = function invokeSourceRequest(model) {
-    return this;
-};
-
-CallResponse.prototype.ensureCollect = function ensureCollect(model, initialVersion, pendingPromiseID) {
-    return this;
-};
-
-CallResponse.prototype.initialize = function initialize_response() {
-    return this;
-};
-
-function subscribeToResponse(observer) {
-
-    var args = this.args;
-    var model = this.model;
-    var selector = this.selector;
-
-    var callPath = pathSyntax.fromPath(args[0]);
-    var callArgs = args[1] || [];
-    var suffixes = (args[2] || []).map(pathSyntax.fromPath);
-    var extraPaths = (args[3] || []).map(pathSyntax.fromPath);
-
-    var rootModel = model.clone({
-        _path: []
-    });
-    var localRoot = rootModel.withoutDataSource();
-    var dataSource = model._source;
-    var boundPath = model._path;
-    var boundCallPath = boundPath.concat(callPath);
-    var boundThisPath = boundCallPath.slice(0, -1);
-
-    var setCallValuesObs = model
-        .withoutDataSource()
-        .get(callPath, function (localFn) {
-            return {
-                model: rootModel.derefSync(boundThisPath).boxValues(),
-                localFn: localFn
-            };
-        })
-        .flatMap(getLocalCallObs)
-        .defaultIfEmpty(getRemoteCallObs(dataSource))
-        .mergeAll()
-        .flatMap(setCallEnvelope);
-
-    var disposables = new CompositeDisposable();
-
-    disposables.add(setCallValuesObs.last().subscribe(function (envelope) {
-            var paths = envelope.paths;
-            var invalidated = envelope.invalidated;
-            if (selector) {
-                paths.push(function () {
-                    return selector.call(model, paths);
-                });
-            }
-            var innerObs = model.get.apply(model, paths);
-            if (observer.outputFormat === "AsJSONG") {
-                innerObs = innerObs.toJSONG().doAction(function (envelope) {
-                    envelope.invalidated = invalidated;
-                });
-            }
-            disposables.add(innerObs.subscribe(observer));
-        },
-        function (e) {
-            observer.onError(e);
-        }
-    ));
-
-    return disposables;
-
-    function getLocalCallObs(tuple) {
-
-        var localFn = tuple && tuple.localFn;
-
-        if (typeof localFn === "function") {
-
-            var localFnModel = tuple.model;
-            var localThisPath = localFnModel._path;
-
-            var remoteGetValues = localFn
-                .apply(localFnModel, callArgs)
-                .reduce(aggregateFnResults, {
-                    values: [],
-                    references: [],
-                    invalidations: [],
-                    localThisPath: localThisPath
-                })
-                .flatMap(setLocalValues)
-                .flatMap(getRemoteValues);
-
-            return Observable["return"](remoteGetValues);
-        }
-
-        return Observable.empty();
-
-        function aggregateFnResults(results, pathValue) {
-            var localThisPath = results.localThisPath;
-            if (Boolean(pathValue.invalidated)) {
-                results.invalidations.push(localThisPath.concat(pathValue.path));
-            } else {
-                var path = pathValue.path;
-                var value = pathValue.value;
-                if (Boolean(value) && typeof value === "object" && value.$type === $ref) {
-                    results.references.push({
-                        path: prependThisPath(path),
-                        value: pathValue.value
-                    });
-                } else {
-                    results.values.push({
-                        path: prependThisPath(path),
-                        value: pathValue.value
-                    });
-                }
-            }
-            return results;
-        }
-
-        function setLocalValues(results) {
-            var values = results.values.concat(results.references);
-            if (values.length > 0) {
-                return localRoot.set
-                    .apply(localRoot, values)
-                    .toJSONG()
-                    .map(function (envelope) {
-                        return {
-                            results: results,
-                            envelope: envelope
-                        };
-                    });
-            } else {
-                return Observable["return"]({
-                    results: results,
-                    envelope: {
-                        jsonGraph: {},
-                        paths: []
-                    }
-                });
-            }
-        }
-
-        function getRemoteValues(tuple) {
-
-            var envelope = tuple.envelope;
-            var results = tuple.results;
-            var values = results.values;
-            var references = results.references;
-            var invalidations = results.invalidations;
-
-            var rootValues = values.map(pluckPath).map(prependThisPath);
-            var rootSuffixes = references.reduce(prependRefToSuffixes, []);
-            var rootExtraPaths = extraPaths.map(prependThisPath);
-            var rootPaths = rootSuffixes.concat(rootExtraPaths);
-            var envelopeObs;
-
-            if (rootPaths.length > 0) {
-                envelopeObs = rootModel.get.apply(rootModel, rootValues.concat(rootPaths)).toJSONG();
-            } else {
-                envelopeObs = Observable["return"](envelope);
-            }
-
-            return envelopeObs.doAction(function (envelope) {
-                envelope.invalidated = invalidations;
-            });
-        }
-
-        function prependRefToSuffixes(refPaths, refPathValue) {
-            var refPath = refPathValue.path;
-            refPaths.push.apply(refPaths, suffixes.map(function (pathSuffix) {
-                return refPath.concat(pathSuffix);
-            }));
-            return refPaths;
-        }
-
-        function pluckPath(pathValue) {
-            return pathValue.path;
-        }
-
-        function prependThisPath(path) {
-            return boundThisPath.concat(path);
-        }
-    }
-
-    function getRemoteCallObs(dataSource) {
-
-        if (dataSource && typeof dataSource === "object") {
-            return dataSource
-                .call(callPath, callArgs, suffixes, extraPaths)
-                .map(invalidateLocalValues);
-            // .flatMap(invalidateLocalValues);
-        }
-
-        return Observable.empty();
-
-        function invalidateLocalValues(envelope) {
-            var invalidations = envelope.invalidated;
-            if (invalidations && invalidations.length) {
-                rootModel.invalidate.apply(rootModel, invalidations);
-                // return rootModel
-                //     .invalidate
-                //     .apply(rootModel, invalidations)
-                //     .map(function () {
-                //         return envelope;
-                //     });
-            }
-            // return Observable["return"](envelope);
-            return envelope;
-        }
-    }
-
-    function setCallEnvelope(envelope) {
-        return localRoot.set(envelope, function () {
-            return {
-                invalidated: envelope.invalidated,
-                paths: envelope.paths.map(function (path) {
-                    return path.slice(boundPath.length);
-                })
-            };
-        });
-    }
-};
-
-module.exports = CallResponse;
-
-},{"198":198,"266":266,"282":282,"298":298}],195:[function(require,module,exports){
+arguments[4][55][0].apply(exports,arguments)
+},{"198":198,"266":266,"282":282,"298":298,"55":55}],195:[function(require,module,exports){
 arguments[4][56][0].apply(exports,arguments)
 },{"196":196,"204":204,"212":212,"219":219,"221":221,"240":240,"298":298,"56":56}],196:[function(require,module,exports){
 arguments[4][57][0].apply(exports,arguments)
@@ -8895,7 +8810,7 @@ arguments[4][57][0].apply(exports,arguments)
 arguments[4][58][0].apply(exports,arguments)
 },{"196":196,"298":298,"58":58}],198:[function(require,module,exports){
 arguments[4][59][0].apply(exports,arguments)
-},{"168":168,"183":183,"218":218,"219":219,"220":220,"221":221,"222":222,"240":240,"241":241,"242":242,"243":243,"244":244,"248":248,"298":298,"59":59}],199:[function(require,module,exports){
+},{"168":168,"218":218,"219":219,"220":220,"221":221,"222":222,"240":240,"241":241,"242":242,"243":243,"244":244,"248":248,"298":298,"59":59}],199:[function(require,module,exports){
 arguments[4][60][0].apply(exports,arguments)
 },{"196":196,"204":204,"212":212,"220":220,"221":221,"240":240,"298":298,"60":60}],200:[function(require,module,exports){
 arguments[4][61][0].apply(exports,arguments)
@@ -8905,31 +8820,31 @@ arguments[4][62][0].apply(exports,arguments)
 arguments[4][63][0].apply(exports,arguments)
 },{"298":298,"63":63}],203:[function(require,module,exports){
 arguments[4][64][0].apply(exports,arguments)
-},{"187":187,"218":218,"223":223,"230":230,"234":234,"235":235,"243":243,"250":250,"253":253,"255":255,"261":261,"262":262,"263":263,"264":264,"265":265,"270":270,"64":64}],204:[function(require,module,exports){
+},{"183":183,"187":187,"218":218,"223":223,"230":230,"234":234,"235":235,"243":243,"250":250,"253":253,"255":255,"261":261,"262":262,"263":263,"264":264,"265":265,"270":270,"64":64}],204:[function(require,module,exports){
 arguments[4][65][0].apply(exports,arguments)
-},{"218":218,"223":223,"234":234,"243":243,"247":247,"250":250,"253":253,"256":256,"258":258,"259":259,"266":266,"271":271,"65":65}],205:[function(require,module,exports){
+},{"183":183,"218":218,"223":223,"234":234,"243":243,"247":247,"250":250,"253":253,"256":256,"258":258,"259":259,"266":266,"271":271,"65":65}],205:[function(require,module,exports){
 arguments[4][66][0].apply(exports,arguments)
-},{"187":187,"218":218,"224":224,"234":234,"243":243,"247":247,"250":250,"253":253,"256":256,"258":258,"259":259,"266":266,"271":271,"66":66}],206:[function(require,module,exports){
+},{"183":183,"187":187,"218":218,"224":224,"234":234,"243":243,"247":247,"250":250,"253":253,"256":256,"258":258,"259":259,"266":266,"271":271,"66":66}],206:[function(require,module,exports){
 arguments[4][67][0].apply(exports,arguments)
-},{"218":218,"223":223,"234":234,"243":243,"247":247,"250":250,"253":253,"256":256,"258":258,"259":259,"266":266,"271":271,"67":67}],207:[function(require,module,exports){
+},{"183":183,"218":218,"223":223,"234":234,"243":243,"247":247,"250":250,"253":253,"256":256,"258":258,"259":259,"266":266,"271":271,"67":67}],207:[function(require,module,exports){
 arguments[4][68][0].apply(exports,arguments)
-},{"218":218,"222":222,"223":223,"234":234,"243":243,"247":247,"250":250,"253":253,"256":256,"258":258,"259":259,"266":266,"271":271,"68":68}],208:[function(require,module,exports){
+},{"183":183,"218":218,"222":222,"223":223,"234":234,"243":243,"247":247,"250":250,"253":253,"256":256,"258":258,"259":259,"266":266,"271":271,"68":68}],208:[function(require,module,exports){
 arguments[4][69][0].apply(exports,arguments)
-},{"218":218,"223":223,"230":230,"234":234,"235":235,"243":243,"250":250,"253":253,"255":255,"256":256,"258":258,"261":261,"262":262,"263":263,"264":264,"265":265,"266":266,"270":270,"69":69}],209:[function(require,module,exports){
+},{"183":183,"218":218,"223":223,"230":230,"234":234,"235":235,"243":243,"250":250,"253":253,"255":255,"256":256,"258":258,"261":261,"262":262,"263":263,"264":264,"265":265,"266":266,"270":270,"69":69}],209:[function(require,module,exports){
 arguments[4][70][0].apply(exports,arguments)
-},{"187":187,"218":218,"224":224,"230":230,"234":234,"235":235,"243":243,"250":250,"253":253,"255":255,"256":256,"258":258,"261":261,"262":262,"263":263,"264":264,"265":265,"266":266,"269":269,"70":70}],210:[function(require,module,exports){
+},{"183":183,"187":187,"218":218,"224":224,"230":230,"234":234,"235":235,"243":243,"250":250,"253":253,"255":255,"256":256,"258":258,"261":261,"262":262,"263":263,"264":264,"265":265,"266":266,"269":269,"70":70}],210:[function(require,module,exports){
 arguments[4][71][0].apply(exports,arguments)
-},{"218":218,"223":223,"230":230,"234":234,"235":235,"243":243,"250":250,"253":253,"255":255,"256":256,"258":258,"261":261,"262":262,"263":263,"264":264,"265":265,"266":266,"270":270,"71":71}],211:[function(require,module,exports){
+},{"183":183,"218":218,"223":223,"230":230,"234":234,"235":235,"243":243,"250":250,"253":253,"255":255,"256":256,"258":258,"261":261,"262":262,"263":263,"264":264,"265":265,"266":266,"270":270,"71":71}],211:[function(require,module,exports){
 arguments[4][72][0].apply(exports,arguments)
-},{"218":218,"223":223,"230":230,"234":234,"235":235,"243":243,"250":250,"253":253,"255":255,"256":256,"258":258,"261":261,"262":262,"263":263,"264":264,"265":265,"270":270,"72":72}],212:[function(require,module,exports){
+},{"183":183,"218":218,"223":223,"230":230,"234":234,"235":235,"243":243,"250":250,"253":253,"255":255,"256":256,"258":258,"261":261,"262":262,"263":263,"264":264,"265":265,"270":270,"72":72}],212:[function(require,module,exports){
 arguments[4][73][0].apply(exports,arguments)
-},{"218":218,"223":223,"230":230,"234":234,"235":235,"238":238,"243":243,"250":250,"253":253,"255":255,"256":256,"258":258,"259":259,"261":261,"262":262,"263":263,"264":264,"265":265,"266":266,"272":272,"73":73}],213:[function(require,module,exports){
+},{"183":183,"218":218,"223":223,"230":230,"234":234,"235":235,"238":238,"243":243,"250":250,"253":253,"255":255,"256":256,"258":258,"259":259,"261":261,"262":262,"263":263,"264":264,"265":265,"266":266,"272":272,"73":73}],213:[function(require,module,exports){
 arguments[4][74][0].apply(exports,arguments)
-},{"187":187,"218":218,"224":224,"230":230,"234":234,"235":235,"238":238,"243":243,"250":250,"253":253,"255":255,"256":256,"258":258,"259":259,"261":261,"262":262,"263":263,"264":264,"265":265,"266":266,"271":271,"74":74}],214:[function(require,module,exports){
+},{"183":183,"187":187,"218":218,"224":224,"230":230,"234":234,"235":235,"238":238,"243":243,"250":250,"253":253,"255":255,"256":256,"258":258,"259":259,"261":261,"262":262,"263":263,"264":264,"265":265,"266":266,"271":271,"74":74}],214:[function(require,module,exports){
 arguments[4][75][0].apply(exports,arguments)
-},{"218":218,"223":223,"230":230,"234":234,"235":235,"238":238,"243":243,"250":250,"253":253,"255":255,"256":256,"258":258,"259":259,"261":261,"262":262,"263":263,"264":264,"265":265,"266":266,"272":272,"75":75}],215:[function(require,module,exports){
+},{"183":183,"218":218,"223":223,"230":230,"234":234,"235":235,"238":238,"243":243,"250":250,"253":253,"255":255,"256":256,"258":258,"259":259,"261":261,"262":262,"263":263,"264":264,"265":265,"266":266,"272":272,"75":75}],215:[function(require,module,exports){
 arguments[4][76][0].apply(exports,arguments)
-},{"218":218,"223":223,"230":230,"234":234,"235":235,"238":238,"243":243,"250":250,"253":253,"255":255,"256":256,"258":258,"259":259,"261":261,"262":262,"263":263,"264":264,"265":265,"272":272,"76":76}],216:[function(require,module,exports){
+},{"183":183,"218":218,"223":223,"230":230,"234":234,"235":235,"238":238,"243":243,"250":250,"253":253,"255":255,"256":256,"258":258,"259":259,"261":261,"262":262,"263":263,"264":264,"265":265,"272":272,"76":76}],216:[function(require,module,exports){
 arguments[4][77][0].apply(exports,arguments)
 },{"212":212,"233":233,"243":243,"244":244,"265":265,"282":282,"77":77}],217:[function(require,module,exports){
 arguments[4][78][0].apply(exports,arguments)

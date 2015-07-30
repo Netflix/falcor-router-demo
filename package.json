@@ -14,7 +14,11 @@
     "promise": "^7.0.3",
     "restify": "3.0.3",
     "rx": "2.5.3",
-    "body-parser": "~1.13.2"
+    "body-parser": "~1.13.2",
+    "pouchdb": "~3.6.0",
+    "restify-cookies": "~0.1.1",
+    "falcor-browser": "git+ssh://git@github.com/Netflix/falcor-browser.git",
+    "falcor": "git+ssh://git@github.com/Netflix/falcor.git"
   },
   "repository": {
     "type": "git",

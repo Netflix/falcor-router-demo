@@ -1,6 +1,5 @@
 'use strict';
 
-
 /*
 This example uses the router to build a virtual JSON Graph object on the server 
 with the following structure:
@@ -61,6 +60,15 @@ var rx = require('rx');
 var Router = require('falcor-router');
 var Promise = require('promise');
 var bodyParser = require("body-parser");
+var PouchDB = require('pouchdb');
+var CookieParser = require('restify-cookies');
+
+var titlesDB = new PouchDB('titles_db');
+var recommendationsDB = new PouchDB('recommendations_db');
+var ratingsDB = new PouchDB('ratings_db');
+
+var log = console.log.bind(console)
+var jlog = function(x) { console.log(JSON.stringify(x, null, 3)) }
 
 var LOG = bunyan.createLogger({
     name: 'demo',
@@ -168,35 +176,110 @@ function pathValuesTOJSONGraphEvelope(pathValues) {
     }
 }
 
-var router = new Router([
-    
+var NetflixRouterBase = Router.createClass([   
     {
         route: "titlesById[{integers:titleIds}].rating",
+        get: function(pathSet) {
+            var self = this;
+            return Promise.all([
+                ratingsDB.allDocs({
+                    keys: pathSet.titleIds.map(function(id) {
+                        return self.userId + "," + id;
+                    }),
+                    include_docs: true
+                }),
+                titlesDB.allDocs({
+                    keys: pathSet.titleIds.map(function(id) {
+                        return id;
+                    }),
+                    include_docs: true
+                })
+            ]).then(function(responses) {
+                var ratingsResponse = responses[0], titlesResponse = responses[1];
+                return pathSet.titleIds.map(function(id, index) {
+                    if (ratingsResponse.rows[index].error) {
+                        if (titlesResponse.rows[index].error) {
+                            return {
+                                path: ['titlesById', id],
+                                value: {
+                                    $type: 'error',
+                                    value: titlesResponse.rows[index].error 
+                                }
+                            };
+                        } else {
+                            return {
+                                path: ['titlesById', id, 'rating'],
+                                value: titlesResponse.rows[index].doc.rating 
+                            };                            
+                        }
+                    } else {
+                        return {
+                            path: ['titlesById', id],
+                            value: ratingsResponse.rows[index].doc.rating
+                        };
+                    }
+                });
+            });
+        },
         set: function (jsonGraph) {
-            return {
-                jsonGraph: jsonGraph
-            }
+            var self = this;
+            var ids = Object.keys(jsonGraph.titlesById)
+
+            return ratingsDB.allDocs({
+                keys: ids.map(function(id) {
+                    return self.userId + "," + id;
+                }),
+                include_docs: true
+            }).then(function(getResponse) {
+                return ratingsDB.bulkDocs(ids.map(function(id, index) {
+                    if (self.userId === undefined) {
+                        console.log("UNAUTHORIZED")
+                        process.exit()
+                    }
+                    return {
+                        _id: self.userId + "," + id,
+                        _rev: (!getResponse.rows[index].error ? getResponse.rows[index].value.rev : undefined),
+                        rating: jsonGraph.titlesById[id].rating                        
+                    };
+                })).then(function(setResponse) {
+                    return ids.map(function(id, index) {
+                        if (setResponse[index].error) {
+                            return {
+                                path: ['titlesById', id, 'rating'],
+                                value: getResponse.rows[index].rating 
+                            }
+                        } else {
+                            return {
+                                path: ['titlesById', id, 'rating'],
+                                value: jsonGraph.titlesById[id].rating
+                            };
+                        }
+                    });
+                });
+            });
         }
-    },    
+    },
+        
     // Here's an example subset of the JSON Graph which this route simulates.
     // {
-    //     genrelists: [
+    //     genrelist: [
     //         {
     //             name: "Thrillers"
     //         },
     //     ]
     // }
     {
-        route: "genrelist[{integers:indices}].name",
-        get: function (pathSet) {        
+        route: "genrelist[{integers:indices}].name",        
+        get: function (pathSet) {
             // In this example, the pathSet could be ["genrelist", [0,1,2], "name"].
             // If that were the case, we would need to return a Promise of an
             // Array containing the following PathValues: 
             // {path: ["genreList", 0, "name"], value: "Horror"}
             // {path: ["genreList", 1, "name"], value: "Thrillers"}
             // {path: ["genreList", 2, "name"], value: "New Releases"}
-            return getJSON('/apps/static/sample/genreLists')
-                .then(function(genrelist) {       
+            return recommendationsDB.get(this.userId || 'all')
+                .then(function(response) {
+                    var genrelist = response.recommendations;
                     // use the indices alias to retrieve the array (equivalent to pathSet[1])             
                     return pathSet.indices.map(function(index) {
                         // If we determine that the index does not exist, we must 
@@ -219,7 +302,7 @@ var router = new Router([
     }, 
     // Here's an example subset of the JSON Graph which this route simulates.
     // {
-    //     genrelists: [
+    //     genrelist: [
     //         {
     //             titles: [
     //                 { $type: 'ref', value: ["titlesById", 523] }
@@ -229,22 +312,23 @@ var router = new Router([
     // }
     {
         route: "genrelist[{integers:indices}].titles[{integers:titleIndices}]",
-        get: function (pathSet) {                                    
-            return getJSON('/apps/static/sample/genreLists').
-                then(function(genrelist) {
+        get: function (pathSet) {
+            return recommendationsDB.get(this.userId || 'all').
+                then(function(response) {
+                    var genrelist = response.recommendations;
                     var pathValues = [];
                     pathSet.indices.forEach(function (index) {
                         pathSet.titleIndices.forEach(function(titleIndex) {
-                            var title = genrelist[index].titles[titleIndex];
-                            if (title == null) {
-                                pathValues.push({ path: ["genrelist", index, "titles", titleIndex], value: { $type: "atom", value: title } });
+                            var titleID = genrelist[index].titles[titleIndex];
+                            if (titleID == null) {
+                                pathValues.push({ path: ["genrelist", index, "titles", titleIndex], value: { $type: "atom", value: titleID } });
                             }
                             else {
                                 pathValues.push({
                                     path: ['genrelist', index, 'titles', titleIndex],
                                     value: {
                                         $type: 'ref',
-                                        value: ['titlesById', title.id]
+                                        value: ['titlesById', titleID]
                                     }
                                 });
                             }
@@ -271,7 +355,7 @@ var router = new Router([
     // Unlike the other routes which return a Promise<Array<PathValue>>, this route returns a 
     // Promise<JSONGraphEnvelope>.
     {
-        route: "titlesById[{integers:titleIds}]['title','year','description','rating','boxshot']",
+        route: "titlesById[{integers:titleIds}]['name','year','description','boxshot']",
         get: function (pathSet) {
             // Unlike the other routes which return Promise<Array<PathValue>>, this route will 
             // return a Promise<JSONGraphEnvelope>.
@@ -291,62 +375,79 @@ var router = new Router([
             //        }
             //    }
             // }
+            var titleKeys = pathSet[2];
+            return titlesDB.allDocs({
+                keys: pathSet.titleIds.map(function(titleId) { 
+                        return titleId; 
+                    }),
+                include_docs: true
+            }).then(function(dbResponse) {
+                var dbResponseRows = dbResponse.rows;
+                var response = {};
+                var jsonGraph = response['jsonGraph'] = {};                    
+                var titlesById = jsonGraph['titlesById'] = {};
 
-            var titleKeys = pathSet[2];            
-            return getJSON('/apps/static/sample/titles?ids=' + pathSet.titleIds.join(',')).
-                then(function(titlesList) {
-                    var response = {};
-                    var jsonGraph = response['jsonGraph'] = {};                    
-                    var titlesById = jsonGraph['titlesById'] = {};
-                    pathSet.titleIds.forEach(function(titleId, index) {
-                        var responseTitle = titlesList[index],
-                            title = {},
-                            value;
+                pathSet.titleIds.forEach(function(titleId, index) {
+                    var responseTitle = dbResponseRows[index],
+                        title = {};
 
-                        if (responseTitle == null) {
-                            titlesById[titleId] = { $type: "atom", value: responseTitle};
-                        }
-                        else {
-                            titleKeys.forEach(function(key) {
-                                title[key] = responseTitle[key]
-                            });
-                            titlesById[titleId] = title;
-                        }
-                    });
-
-                    // Returning a Promise<JSONGraphEnvelope>
-                    return response;
+                    if (responseTitle.error) {
+                        titlesById[titleId] = { $type: "error", value: responseTitle.error };
+                    }
+                    else {
+                        titleKeys.forEach(function(key) {
+                            title[key] = responseTitle.doc[key]
+                        });
+                        titlesById[titleId] = title;
+                    }
                 });
+                return response;
+            })
         }
     },
     {
-        route: 'genrelist[{integers:titles}].titles.push',
+        route: 'genrelist[{integers:indices}].titles.push',
         call: function(callPath, args) {
-            // return {
-            //     paths: [['genrelist', 0, 'titles', 2]],
-            //     jsonGraph: {
-            //         generelist: {
-            //             0: {
-            //                 titles: {
-            //                     2: {
-            //                         $type: 'ref',
-            //                         value: ['titlesById', 1]
-            //                     }
-            //                 }
-            //             }
-            //         }
-            //     }
-            // }
-            return {
-                path: ['genrelist', 0, 'titles', 2],
-                value: {
-                    $type: 'ref',
-                    value: ['titlesById', 1]
-                }
-            }
+            var self = this
+            log("call function")
+            return recommendationsDB.get(self.userId)
+                .then(function(response) {
+                    log("------------------------")
+                    jlog(response)
+                                        
+                    var index = callPath.indices[0];
+                    var titlesLength = response.recommendations[index].titles.push(args[0]);
+                    return recommendationsDB.put({
+                        _id: self.userId,
+                        _rev: response._rev,
+                        recommendations: response.recommendations                     
+                    }).then(function() {
+                        return [
+                            {
+                                path: ['genrelist', index, 'titles', titlesLength - 1],
+                                value: args[0]
+                            },
+                            {
+                                path: ['genrelist', index, 'titles', 'length'],
+                                value: titlesLength
+                            }
+                        ];
+                    });
+                });
+        },
+        authorize: function() {
+            log("authorize function")
+            return this.userId !== undefined;
         }
     }
 ]);
+
+var NetflixRouter = function(userId) {
+    NetflixRouterBase.call(this);
+    this.userId = userId;
+};
+
+NetflixRouter.prototype = Object.create(NetflixRouterBase.prototype);
 
 var server = restify.createServer({
     log: LOG.child({
@@ -372,8 +473,9 @@ var server = restify.createServer({
 
 server.use(restify.requestLogger());
 server.use(restify.queryParser());
-
 server.use(restify.bodyParser({mapParams: true}));
+server.use(CookieParser.parse);
+
 
 server.on('after', restify.auditLogger({
     log: LOG.child({
@@ -388,11 +490,13 @@ server.on('uncaughtException', function (req, res, route, err) {
 
 // Expose the
 server.post('/model.json', falcorPlugin(function (req, res, next) {
-    return router;
+    var cookies = req.cookies; // Gets read-only cookies from the request  
+    return new NetflixRouter(cookies.userId);
 }));
 
 server.get('/model.json', falcorPlugin(function (req, res, next) {
-    return router;
+    var cookies = req.cookies; // Gets read-only cookies from the request  
+    return new NetflixRouter(cookies.userId);
 }));
 
 // Make sure to serve the index.html file
@@ -401,6 +505,17 @@ server.get(/\/.*/, restify.serveStatic({
   default: 'index.html'
 }));
 
-server.listen(8080, function() {
+server.listen(1000, function() {
+  var falcor = require("falcor");
+  var HttpDataSource = require("falcor-browser");
+  var model = new falcor.Model({
+      source: new HttpDataSource('http://localhost:1000/model.json')
+  });
+  
+  model.call('genrelist[0].titles.push', [{$type: "ref", value: ['titlesById', 1]}]).then(jlog)
+  
   console.log('%s listening at %s', server.name, server.url);
 });
+
+
+
