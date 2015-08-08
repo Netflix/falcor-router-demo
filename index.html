@@ -1,6 +1,6 @@
 <html>
 <head>
-<script src="falcor.browser.js"></script>
+<script src="//netflix.github.io/falcor/build/falcor.browser.js"></script>
 <script>
 
 var $ref = falcor.Model.ref
@@ -33,8 +33,30 @@ var jerror = function(x) { console.error(JSON.stringify(x, null, 3)) }
 
 // model.get('genrelist[0].titles[0]').subscribe(jlog, jerror)
 
-// model.call('genrelist[0].titles.push', [$ref('titlesById[1]')]).then(jlog, jerror);
+//  model.setValue('titlesById[9].userRating', 9).then(jlog, jlog)
+
+//   model.set(falcor.pathValue('titlesById[9].userRating', 9), falcor.pathValue('titlesById[10].userRating', 10)).then(jlog, jerror)
+
+   //model.set(falcor.pathValue('titlesById[9].userRating', 9), falcor.pathValue('titlesById[10].userRating', 10)).then(jlog, jerror)
+
+  // model.call('genrelist[0].titles.push', [{$type: "ref", value: ['titlesById', 1]}]).then(function(x) {
+  //   jlog(x)
+  //   model.get('genrelist[0].titles[42]["name", "year"]').then(jlog, jerror)
+  // }, jerror)
+
+  // model.call('genrelist[0].titles.push', [{$type: "ref", value: ['titlesById', 1]}]).then(function(x) {
+  //   jlog(x)
     
+  // }, jerror)
+
+
+  //model.call('genrelist[0].titles.push', [{$type: "ref", value: ['titlesById', 1]}], ["name", "rating"], ["length"]).then(jlog, jerror)
+
+// model.call('genrelist[0].titles.push', [$ref('titlesById[1]')]).then(jlog, jerror);
+  // model.call('genrelist[0].titles.push', [{$type: "ref", value: ['titlesById', 1]}]).then(function(x) {
+  //   jlog(x)
+  //   //model.get('genrelist[0].titles[]').then(jlog)      
+  // }, jerror)    
 
 //set clear authorization cookie:   
 function setCookie() {
