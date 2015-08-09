@@ -1,40 +1,12 @@
 <html>
 <head>
-<script src="falcor.browser.js"></script>
+<script src="//netflix.github.io/falcor/build/falcor.browser.js"></script>
 <script>
 
 var $ref = falcor.Model.ref
 var model = new falcor.Model({
     source: new falcor.HttpDataSource('/model.json')
 });
-
-//logging:
-var log = console.log.bind(console)
-var jlog = function(x) { console.log(JSON.stringify(x, null, 3)) } 
-var error = console.error.bind(console)
-var jerror = function(x) { console.error(JSON.stringify(x, null, 3)) }
-
-
-//some examples:
-// model.get('genrelist[0..5].titles[0..5].name').then(jlog)
-
-// model.get('genrelist[0..1].titles[0..1]["title", "rating", "year", "description", "boxshot"]').then(jlog)
-
-// model.getValue('titlesById[4].rating').then(jlog, jerror)
-
-// model.setValue('titlesById[26].rating', 26).then(jlog, jerror)
-// model.getValue('titlesById[26].rating').then(jlog, jerror)
-
-// model.getValue('titlesById[1..2].description').then(jlog)
-
-// model.getValue('titlesById[2,4]["description", "name"]').then(jlog, jerror)
-
-// model.get('genrelist[4,5].name').subscribe(jlog, jerror)
-
-// model.get('genrelist[0].titles[0]').subscribe(jlog, jerror)
-
-// model.call('genrelist[0].titles.push', [$ref('titlesById[1]')]).then(jlog, jerror);
-    
 
 //set clear authorization cookie:   
 function setCookie() {

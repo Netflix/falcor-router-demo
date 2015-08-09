@@ -18,16 +18,29 @@
     "pouchdb": "~3.6.0",
     "restify-cookies": "~0.1.1",
     "falcor-browser": "git+ssh://git@github.com/Netflix/falcor-browser.git",
-    "falcor": "git+ssh://git@github.com/Netflix/falcor.git"
+    "falcor": "git+ssh://git@github.com/Netflix/falcor.git",
+    "falcor-json-graph": "git+ssh://git@github.com/Netflix/falcor-json-graph.git"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Netflix/falcor-router-demo.git"
   },
-  "author": "yunong",
-  "license": "MIT",
+  "author": {
+    "name": "Netflix",
+    "url": "https://github.com/Netflix/falcor/authors.txt"
+  },
+  "licenses": [
+    {
+      "type": "Apache License, Version 2.0",
+      "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
+    }
+  ],
   "bugs": {
     "url": "https://github.com/Netflix/falcor-router-demo/issues"
   },
   "homepage": "https://github.com/Netflix/falcor-router-demo#readme"
+  "devDependencies": {
+    "gulp-eslint": "~1.0.0",
+    "gulp": "~3.9.0"
+  }
 }
