@@ -8,56 +8,6 @@ var model = new falcor.Model({
     source: new falcor.HttpDataSource('/model.json')
 });
 
-//logging:
-var log = console.log.bind(console)
-var jlog = function(x) { console.log(JSON.stringify(x, null, 3)) } 
-var error = console.error.bind(console)
-var jerror = function(x) { console.error(JSON.stringify(x, null, 3)) }
-
-
-//some examples:
-// model.get('genrelist[0..5].titles[0..5].name').then(jlog)
-
-// model.get('genrelist[0..1].titles[0..1]["title", "rating", "year", "description", "boxshot"]').then(jlog)
-
-// model.getValue('titlesById[4].rating').then(jlog, jerror)
-
-// model.setValue('titlesById[26].rating', 26).then(jlog, jerror)
-// model.getValue('titlesById[26].rating').then(jlog, jerror)
-
-// model.getValue('titlesById[1..2].description').then(jlog)
-
-// model.getValue('titlesById[2,4]["description", "name"]').then(jlog, jerror)
-
-// model.get('genrelist[4,5].name').subscribe(jlog, jerror)
-
-// model.get('genrelist[0].titles[0]').subscribe(jlog, jerror)
-
-//  model.setValue('titlesById[9].userRating', 9).then(jlog, jlog)
-
-//   model.set(falcor.pathValue('titlesById[9].userRating', 9), falcor.pathValue('titlesById[10].userRating', 10)).then(jlog, jerror)
-
-   //model.set(falcor.pathValue('titlesById[9].userRating', 9), falcor.pathValue('titlesById[10].userRating', 10)).then(jlog, jerror)
-
-  // model.call('genrelist[0].titles.push', [{$type: "ref", value: ['titlesById', 1]}]).then(function(x) {
-  //   jlog(x)
-  //   model.get('genrelist[0].titles[42]["name", "year"]').then(jlog, jerror)
-  // }, jerror)
-
-  // model.call('genrelist[0].titles.push', [{$type: "ref", value: ['titlesById', 1]}]).then(function(x) {
-  //   jlog(x)
-    
-  // }, jerror)
-
-
-  //model.call('genrelist[0].titles.push', [{$type: "ref", value: ['titlesById', 1]}], ["name", "rating"], ["length"]).then(jlog, jerror)
-
-// model.call('genrelist[0].titles.push', [$ref('titlesById[1]')]).then(jlog, jerror);
-  // model.call('genrelist[0].titles.push', [{$type: "ref", value: ['titlesById', 1]}]).then(function(x) {
-  //   jlog(x)
-  //   //model.get('genrelist[0].titles[]').then(jlog)      
-  // }, jerror)    
-
 //set clear authorization cookie:   
 function setCookie() {
     document.cookie = "userId=1";

@@ -183,13 +183,13 @@ var NetflixRouterBase = Router.createClass([
                     });                    
                 });
         },
-        set: function (jsonGraph) {
+        set: function (jsonGraphArg) {
     
             if (this.userId === undefined)
                 throw new Error("not authorized");
 
-            var ids = Object.keys(jsonGraph.titlesById);                        
-            return ratingService.setRatings(this.userId, jsonGraph.titlesById).
+            var ids = Object.keys(jsonGraphArg.titlesById);                        
+            return ratingService.setRatings(this.userId, jsonGraphArg.titlesById).
                 then(function(ratings) { 
                     return ids.map(function(id) {
                         if (!ratings[id].error) {
@@ -217,9 +217,7 @@ var NetflixRouterBase = Router.createClass([
     //     ]
     // }
     {
-        //@TODO: where should the below 'length' property be drawn from?
-        //route: "genrelist[{integers:indices}]['name', 'length']",
-        route: "genrelist[{integers:indices}]['name', 'notlength']",
+        route: "genrelist[{integers:indices}].name",
         get: function (pathSet) {
                         
             // In this example, the pathSet could be ["genrelist", [0,1,2], "name"].
@@ -245,16 +243,11 @@ var NetflixRouterBase = Router.createClass([
                             return { path: ["genrelist", index], value: $atom(list)};
                         }
 
-                        pathSet[2].forEach(function(key) {
-                            results.push({
-                                path: ['genrelist', index, key],
-                                value: genrelist[index][key]
-                            });
-                        });
-                        return results;
-                    }).reduce(function(x, xs) {
-                        return x.concat(xs)
-                    }, []);
+                        return {
+                            path: ['genrelist', index, 'name'],
+                            value: genrelist[index].name
+                        };
+                    });
                 });
         }
     }, 
@@ -334,13 +327,12 @@ var NetflixRouterBase = Router.createClass([
             return titleService.getTitles(pathSet.titleIds).
                 then(function(titles) {
                     var response = {};
-                    var jsonGraph = response['jsonGraph'] = {};                    
-                    var titlesById = jsonGraph['titlesById'] = {};
+                    var jsonGraphResponse = response['jsonGraph'] = {};                    
+                    var titlesById = jsonGraphResponse['titlesById'] = {};
 
                     pathSet.titleIds.forEach(function(titleId) {
                         var responseTitle = titles[titleId],
                             title = {};
-                            
                         if (responseTitle.error == "not_found") {
                             titlesById[titleId] = jsonGraph.undefined();
                         } else if (responseTitle.error) {
@@ -361,7 +353,7 @@ var NetflixRouterBase = Router.createClass([
         route: 'genrelist[{integers:indices}].titles.length',
         get: function(pathSet) {
                
-            return recommendationService.getGenreList(this.userId || 'all')
+            return recommendationService.getGenreList(this.userId)
                 .then(function(genrelist) {             
                     return pathSet.indices.map(function(index) {
                         var list = genrelist[index];
@@ -372,11 +364,36 @@ var NetflixRouterBase = Router.createClass([
                         return {
                             path: ['genrelist', index, 'titles', 'length'],
                             value: list.titles.length
-                        }
+                        };
                     });
                 });
         }
     },    
+    {
+        route: 'genrelist[{integers:indices}].titles.remove',
+        call: function(callPath, args) {
+            
+            if (this.userId == undefined)
+                throw new Error("not authorized");
+
+            var genreIndex = callPath.indices[0], titleIndex = args[0];
+
+            return recommendationService.
+                removeTitleFromGenreListByIndex(this.userId, genreIndex, titleIndex).
+                then(function(titleIdAndLength) {                    
+                    return [
+                        {
+                            path: ['genrelist', genreIndex, 'titles', {from: titleIndex, to: titleIdAndLength.length }],
+                            invalidated: true
+                        },
+                        {
+                            path: ['genrelist', genreIndex, 'titles', 'length'],
+                            value: titleIdAndLength.length
+                        }
+                    ];
+                });
+        }
+    },
     {
         route: 'genrelist[{integers:indices}].titles.push',
         call: function(callPath, args) {
@@ -384,7 +401,29 @@ var NetflixRouterBase = Router.createClass([
             if (this.userId == undefined)
                 throw new Error("not authorized");
 
-            return recommendationService.addTitleToGenreList(this.userId, callPath.indices[0], args[0])
+            var titleRef = args[0], titleId, genreIndex = callPath.indices[0];
+            if (titleRef == null || titleRef.$type !== "ref" || titleRef.value[0] != "titlesById" || titleRef.value.length !== 2) {
+                throw new Error("invalid input");
+            }
+            
+            titleId = titleRef.value[1];
+            if (parseInt(titleId, 10).toString() !== titleId.toString())
+                throw new Error("invalid input");
+
+            return recommendationService.
+                addTitleToGenreList(this.userId, genreIndex, titleId).
+                then(function(length) {
+                    return [
+                        {
+                            path: ['genrelist', genreIndex, 'titles', length - 1],
+                            value: titleRef
+                        },
+                        {
+                            path: ['genrelist', genreIndex, 'titles', 'length'],
+                            value: length
+                        }
+                    ];
+                });
         }
     }
 ]);
@@ -437,14 +476,12 @@ server.on('uncaughtException', function (req, res, route, err) {
 
 server.post('/model.json', falcorPlugin(function (req, res, next) {
     var cookies = req.cookies; // Gets read-only cookies from the request
-    //return new NetflixRouter(cookies.userId);
-    return new NetflixRouter("1");
+    return new NetflixRouter(cookies.userId);
 }));
 
 server.get('/model.json', falcorPlugin(function (req, res, next) {
     var cookies = req.cookies; // Gets read-only cookies from the request  
-    //return new NetflixRouter(cookies.userId);
-    return new NetflixRouter("1");
+    return new NetflixRouter(cookies.userId);
 }));
 
 // Make sure to serve the index.html file
@@ -459,83 +496,6 @@ server.listen(1001, function() {
   var model = new falcor.Model({
       source: new HttpDataSource('http://localhost:1001/model.json')
   });
-  
-    //examples:
-    var log = console.log.bind(console);
-    var jlog = function(x) { console.log(JSON.stringify(x, null, 3)); };
-      
-   // model.get('genrelist[0].name').then(function(x) {
-    //    jlog(x)
-    //    model.get('genrelist[0].titles[1].name').then(jlog)
-   // })
-
-
-    // model.get('titlesById[26,5,4].userRating').then(function(x) {
-    //     model.invalidate('titlesById[26,4,5].userRating')
-    //     model.get('titlesById[26,4,5].userRating').then(jlog, jlog)
-    //     jlog(x)
-    //     //model.get('titlesById[26,4,5,6,7].userRating').then(jlog)        
-    // }, jlog)
-   
-    // model.get('titlesById[3,4,5]["name", "year"]').then(jlog, jlog)
-    // model.get('titlesById[5]["year"]').then(function(x) {
-    //     jlog(x)
-    //     model.get('titlesById[5,3]["description"]').then(jlog)        
-    // }, jlog)
-
-    // model.get('titlesById[3,4,5]["name", "year"]').then(jlog, jlog)
-    // model.get('titlesById[1,2,3]["name", "year"]').then(jlog, jlog)
-    // model.get('titlesById[1,2].name').then(jlog, jlog)
-         
-    // model.setValue('titlesById[26].userRating', 100).then(function(x) {
-    //     jlog(x)
-    //     model.get('titlesById[26].userRating').then(jlog, jlog)
-    // }, jlog)
-       
-   // model.get('titlesById[26,4,5].userRating').then(jlog, jlog)
-   // model.get('titlesById[26,5].userRating').then(jlog, jlog)
-
-   // model.get('titlesById[1,2,3]["name", "year"]').then(function(x) {
-    //    jlog(x)
-    //    model.get('titlesById[1,3]["name", "year", "description"]').then(jlog)
-    //    //model.get('titlesById[3,4,5]["name", "year"]').then(jlog)
-   // })
-
-
-   //model.get('genrelist[0].titles[0]["name", "rating"]').then(jlog)
-
-   //model.setValue('titlesById[9].userRating', 9).then(jlog, jlog)
-   
-   //model.get('titlesById[9].userRating').then(jlog, jlog)
-   //model.get('titlesById[2].userRating').then(jlog, jlog)
-
-   //test this!!!!!!!!!!!!!!!!!!!!!!:      
-   // model.set(jsonGraph.pathValue('titlesById[9].userRating', 9), jsonGraph.pathValue('titlesById[10].userRating', 10)).then(jlog, function(e) {
-    //    jlog("onEror:")
-    //    jlog(e)
-   // })
-
-
-
-    //model.get("genrelist[4,5]['name']").then(jlog, jlog)
     
-//   model.get("genrelist[4,5]['name', 'length']").then(jlog, jlog) 
-
-//   model.get('genrelist[0].titles.length').then(jlog, jlog)
-
-  // model.call('genrelist[0].titles.push', [{$type: "ref", value: ['titlesById', 1]}], ["name", "rating"], ["length"]).then(function(x) {
-    //   jlog(x);
-  // }, function(e) {
-    //   log("onError:");
-    //   jlog(e);
-  // });
-
-
-    //test this too!!!!!!!!!!!!!!!!!!!!!!!!!!!!!:         
-  // model.call('genrelist[0].titles.push', [{$type: "ref", value: ['titlesById', 1]}]).then(function(x) {
-    // jlog(x)
-    // model.get('genrelist[0].titles[44]["name", "year"]').then(jlog, jlog)
-  // }, jlog)
-  
   console.log('%s listening at %s', server.name, server.url);
 });

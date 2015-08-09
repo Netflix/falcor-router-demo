@@ -1,74 +1,61 @@
-var Promise = require('promise')
-
-var PouchDB = require('pouchdb')
-var recommendationsDB = new PouchDB('recommendations_db')
-
-var log = console.log.bind(console)
-var jlog = function(x) { console.log(JSON.stringify(x, null, 3)) }
+var Promise = require('promise');
+var PouchDB = require('pouchdb');
+var recommendationsDB = new PouchDB('recommendations_db');
+var batch = require('./batch');
 
 // genrelist service
 function RecommendationsService() {}
 RecommendationsService.prototype = {
 	getGenreList: function(userId) {
-		var self = this
-		if (self.cache) {
-			return Promise.resolve(self.cache)
-		} else {
-	        return recommendationsDB.get((userId || 'all').toString())
-	            .then(function(response) {
-					self.cache = response.recommendations
-	                return response.recommendations
-	            })
-		}
-	},
-	addTitleToGenreList: function(userId, genreIndex, titles) {
         
-        return recommendationsDB.get(userId)
-            .then(function(response) {
-                var titlesLength = response.recommendations[genreIndex].titles.push(titles);
-                return recommendationsDB.put({
-                    _id: userId,
-                    _rev: response._rev,
-                    recommendations: response.recommendations                     
-                }).then(function(a) {
-                    return [
-                        {
-                            path: ['genrelist', genreIndex, 'titles', titlesLength - 1],
-                            value: titles
-                        },
-                        {
-                            path: ['genrelist', genreIndex, 'titles', 'length'],
-                            value: titlesLength
-                        }
-                    ];
+        var getGenreLists = batch(function(userIds) {
+            return recommendationsDB.allDocs({
+                keys: userIds.map(function(x) { return x.toString(); }),
+                include_docs: true
+            }).then(function(dbResponse) {
+                var genreLists = {};
+                dbResponse.rows.forEach(function(row) {
+                    genreLists[row.key] = row;
                 });
-            });		
+                return genreLists;
+            });            
+        });
+        
+        return getGenreLists([userId || 'all']).then(function(genreLists) {
+            return genreLists[userId].doc.recommendations;
+        });
 	},
-
-    //@TODO: untested.
-    //[].splice(index, howMany, replce, replce, replce) takes unlimited number of the final argument
-    spliceTitleFromGenreList: function(userId, a, b, c) {
+    
+	addTitleToGenreList: function(userId, genreIndex, titleId) {
         return recommendationsDB.get(userId)
             .then(function(response) {
-                var titlesLength = response.recommendations[genreIndex].titles.splice(a, b, c);
+                var titlesLength = response.recommendations[genreIndex].titles.push(titleId);
                 return recommendationsDB.put({
                     _id: userId,
                     _rev: response._rev,
                     recommendations: response.recommendations                     
                 }).then(function() {
-                    return [
-                        {
-                            path: ['genrelist', genreIndex, 'titles', titlesLength - 1],
-                            value: titles
-                        },
-                        {
-                            path: ['genrelist', genreIndex, 'titles', 'length'],
-                            value: titlesLength
-                        }
-                    ];
+                    return titlesLength;  
+                });
+            });
+	},
+    
+    removeTitleFromGenreListByIndex: function(userId, genreIndex, titleIndex) {
+        return recommendationsDB.get(userId)
+            .then(function(response) {
+                var removedTitleId = response.recommendations[genreIndex].titles.splice(titleIndex, 1)[0];
+                return recommendationsDB.put({
+                    _id: userId,
+                    _rev: response._rev,
+                    recommendations: response.recommendations
+                }).then(function() {
+                    return {
+                        titleId: removedTitleId, 
+                        length: response.recommendations[genreIndex].titles.length
+                    }; 
                 });
             });
     }    
-}
+};
 
-module.exports = new RecommendationsService()
+module.exports = new RecommendationsService();
