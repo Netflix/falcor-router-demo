@@ -4,6 +4,10 @@ This project builds and exports a Router factory function. The Router creates a 
 
 ## The Virtual JSON Graph
 
+When a member logs into the Netflix application, they see a personalized list of genres, each of which contains a personalized list of titles.
+
+
+
 The Router creates a JSON Graph object with the following format:
 
 ~~~js
