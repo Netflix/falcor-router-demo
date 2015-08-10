@@ -6,7 +6,8 @@ var batch = require('./batch');
 // genrelist service
 function RecommendationsService() {}
 RecommendationsService.prototype = {
-	getGenreList: function(userId) {
+    getGenreList: function(userId) {
+        var userId = userId || 'all'
         
         var getGenreLists = batch(function(userIds) {
             return recommendationsDB.allDocs({
@@ -21,10 +22,10 @@ RecommendationsService.prototype = {
             });            
         });
         
-        return getGenreLists([userId || 'all']).then(function(genreLists) {
+        return getGenreLists([userId]).then(function(genreLists) {
             return genreLists[userId].doc.recommendations;
         });
-	},
+    },
     
 	addTitleToGenreList: function(userId, genreIndex, titleId) {
         return recommendationsDB.get(userId)
