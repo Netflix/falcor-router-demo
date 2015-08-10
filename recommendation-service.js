@@ -1,6 +1,7 @@
 var Promise = require('promise');
 var PouchDB = require('pouchdb');
-var recommendationsDB = new PouchDB('recommendations_db');
+var path = require('path');
+var recommendationsDB = new PouchDB(path.join(__dirname, 'recommendations_db'));
 var batch = require('./batch');
 
 // genrelist service
