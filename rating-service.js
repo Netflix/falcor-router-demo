@@ -1,6 +1,7 @@
 var Promise = require('promise');
 var PouchDB = require('pouchdb');
-var ratingsDB = new PouchDB('ratings_db');
+var path = require('path');
+var ratingsDB = new PouchDB(path.join(__dirname, 'ratings_db'));
 
 // ratings service
 function RatingService() {}
