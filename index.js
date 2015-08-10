@@ -325,6 +325,19 @@ var NetflixRouterBase = Router.createClass([
         }
     },
     {
+        route: 'genrelist.length',
+        get: function(pathSet) {
+               
+            return recommendationService.getGenreList(this.userId)
+                .then(function(genrelist) {             
+                    return {
+                        path: ['genrelist', 'length'],
+                        value: genrelist.length
+                    };
+                });
+        }
+    },    
+    {
         route: 'genrelist[{integers:indices}].titles.length',
         get: function(pathSet) {
                
@@ -357,11 +370,10 @@ var NetflixRouterBase = Router.createClass([
                 removeTitleFromGenreListByIndex(this.userId, genreIndex, titleIndex).
                 then(function(titleIdAndLength) {
                     return [
-                        //@TODO: the below breaks all things.
-                        // {
-                        //     path: ['genrelist', genreIndex, 'titles', {from: titleIndex, to: titleIdAndLength.length }],
-                        //     invalidated: true
-                        // },
+                        {
+                            path: ['genrelist', genreIndex, 'titles', {from: titleIndex, to: titleIdAndLength.length }],
+                            invalidated: true
+                        },
                         {
                             path: ['genrelist', genreIndex, 'titles', 'length'],
                             value: titleIdAndLength.length
