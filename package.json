@@ -5,19 +5,13 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node index.js 2>&1 | ./node_modules/.bin/bunyan"
+    "start": "node index.js 2>&1"
   },
   "dependencies": {
-    "bunyan": "1.4.0",
-    "falcor-restify": "git+ssh://git@github.com/Netflix/falcor-restify.git",
     "falcor-router": "git+ssh://git@github.com/Netflix/falcor-router.git",
     "promise": "^7.0.3",
-    "restify": "3.0.3",
     "rx": "2.5.3",
-    "body-parser": "~1.13.2",
     "pouchdb": "~3.6.0",
-    "restify-cookies": "~0.1.1",
-    "falcor-browser": "git+ssh://git@github.com/Netflix/falcor-browser.git",
     "falcor": "git+ssh://git@github.com/Netflix/falcor.git",
     "falcor-json-graph": "git+ssh://git@github.com/Netflix/falcor-json-graph.git"
   },
@@ -39,8 +33,5 @@
     "url": "https://github.com/Netflix/falcor-router-demo/issues"
   },
   "homepage": "https://github.com/Netflix/falcor-router-demo#readme",
-  "devDependencies": {
-    "gulp-eslint": "~1.0.0",
-    "gulp": "~3.9.0"
-  }
+  "devDependencies": {}
 }
