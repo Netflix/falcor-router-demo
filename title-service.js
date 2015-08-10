@@ -1,11 +1,12 @@
 var PouchDB = require('pouchdb');
+var batch = require('./batch')
 var path = require('path');
 var titlesDB = new PouchDB(path.join(__dirname, 'titles_db'));
 
 // titles service
 function TitleService() {}
 TitleService.prototype = {
-	getTitles: function(titleIds) {
+	getTitles: batch(function(titleIds) {
         return titlesDB.allDocs({
             keys: titleIds.map(function(x) { return x.toString(); }),
             include_docs: true
@@ -16,7 +17,7 @@ TitleService.prototype = {
 			});
 			return titles;
 		});
-	}
+	})
 };
 
 module.exports = new TitleService();

@@ -25,6 +25,8 @@ with the following structure:
     }
 }
 
+It is hosted at a single URL (model.json) using Restify.
+
 ********** IMPORTANT ****************
 
 It is only legal to retrieve value types from a JSON Graph 
@@ -52,6 +54,7 @@ As a reminder, the JSON Graph values types are:
 */ 
 
 var Router = require('falcor-router');
+var Promise = require('promise');
 
 var jsonGraph = require('falcor-json-graph');
 var $ref = jsonGraph.ref;
@@ -117,28 +120,44 @@ var NetflixRouterBase = Router.createClass([
         route: "titlesById[{integers:titleIds}].userRating",
         get: function(pathSet) {
 
-            return ratingService.getRatings(this.userId, pathSet.titleIds).
-                then(function(ratings) {
-                    return pathSet.titleIds.map(function(titleId) { 
-                        if (!ratings[titleId].error) {                            
-                            return {
-                                path: ['titlesById', titleId, 'userRating'], 
-                                value: ratings[titleId].doc.rating
-                            };                            
-                        } else if (ratings[titleId].error == "not_found") {
-                            return {
-                                path: ['titlesById', titleId, 'userRating'],
-                                value: jsonGraph.undefined()
-                            };    
-                        } else {
-                            return {
-                                path: ['titlesById', titleId],
-                                value: $error(ratings[titleId].error)
-                            };
-                        }
-                    });                    
-                });
+            if (this.userId === undefined)
+                throw new Error("not authorized");
+
+            return Promise.all([
+                titleService.getTitles(pathSet.titleIds),
+                ratingService.getRatings(this.userId, pathSet.titleIds)
+            ]).then(function(results) {
+                var titles = results[0]
+                var ratings = results[1]
+                return pathSet.titleIds.map(function(titleId) {
+                    var titleRecord = titles[titleId]
+                    var ratingRecord = ratings[titleId]
+                    if (titleRecord.doc == null || titleRecord.error == "not_found") {
+                        return {
+                            path: ['titlesById', titleId],
+                            value: jsonGraph.undefined()
+                        };    
+                    } else if (ratingRecord.doc) {
+                        return {
+                            path: ['titlesById', titleId, 'userRating'], 
+                            value: ratingRecord.doc.rating
+                        };
+                   } else if (!ratings[titleId].error || ratings[titleId].error == "not_found") {
+                        return {
+                            path: ['titlesById', titleId, 'userRating'],
+                            value: jsonGraph.undefined()
+                        };
+                    } else {
+                        return {
+                            path: ['titlesById', titleId, 'userRating'],
+                            value: $error(ratingRecord.error)
+                        };
+                    };
+
+                })
+            })
         },
+        
         set: function (jsonGraphArg) {
     
             if (this.userId === undefined)
@@ -146,7 +165,7 @@ var NetflixRouterBase = Router.createClass([
 
             var ids = Object.keys(jsonGraphArg.titlesById);                        
             return ratingService.setRatings(this.userId, jsonGraphArg.titlesById).
-                then(function(ratings) { 
+                then(function(ratings) {                     
                     return ids.map(function(id) {
                         if (!ratings[id].error) {
                             return {
@@ -336,12 +355,13 @@ var NetflixRouterBase = Router.createClass([
 
             return recommendationService.
                 removeTitleFromGenreListByIndex(this.userId, genreIndex, titleIndex).
-                then(function(titleIdAndLength) {                    
+                then(function(titleIdAndLength) {
                     return [
-                        {
-                            path: ['genrelist', genreIndex, 'titles', {from: titleIndex, to: titleIdAndLength.length }],
-                            invalidated: true
-                        },
+                        //@TODO: the below breaks all things.
+                        // {
+                        //     path: ['genrelist', genreIndex, 'titles', {from: titleIndex, to: titleIdAndLength.length }],
+                        //     invalidated: true
+                        // },
                         {
                             path: ['genrelist', genreIndex, 'titles', 'length'],
                             value: titleIdAndLength.length
@@ -387,7 +407,7 @@ var NetflixRouterBase = Router.createClass([
 
 var NetflixRouter = function(userId) {
     NetflixRouterBase.call(this);
-    this.userId = userId;
+    this.userId = (userId || '').toString();
 };
 NetflixRouter.prototype = Object.create(NetflixRouterBase.prototype);
 
