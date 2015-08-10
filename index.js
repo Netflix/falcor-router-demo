@@ -25,8 +25,6 @@ with the following structure:
     }
 }
 
-It is hosted at a single URL (model.json) using Restify.
-
 ********** IMPORTANT ****************
 
 It is only legal to retrieve value types from a JSON Graph 
