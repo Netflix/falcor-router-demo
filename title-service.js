@@ -1,5 +1,6 @@
 var PouchDB = require('pouchdb');
-var titlesDB = new PouchDB('titles_db');
+var path = require('path');
+var titlesDB = new PouchDB(path.join(__dirname, 'titles_db'));
 
 // titles service
 function TitleService() {}
