@@ -407,7 +407,7 @@ var NetflixRouterBase = Router.createClass([
 
 var NetflixRouter = function(userId) {
     NetflixRouterBase.call(this);
-    this.userId = (userId || '').toString();
+    this.userId = userId;
 };
 NetflixRouter.prototype = Object.create(NetflixRouterBase.prototype);
 
