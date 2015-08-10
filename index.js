@@ -53,15 +53,7 @@ As a reminder, the JSON Graph values types are:
 
 */ 
 
-var bunyan = require('bunyan');
-var falcorPlugin = require('falcor-restify');
-var restify = require('restify');
-var rx = require('rx');
 var Router = require('falcor-router');
-var Promise = require('promise');
-var bodyParser = require("body-parser");
-var PouchDB = require('pouchdb');
-var CookieParser = require('restify-cookies');
 
 var jsonGraph = require('falcor-json-graph');
 var $ref = jsonGraph.ref;
@@ -71,40 +63,6 @@ var $error = jsonGraph.error;
 var ratingService = require('./rating-service');
 var titleService = require('./title-service');
 var recommendationService = require('./recommendation-service');
-
-var LOG = bunyan.createLogger({
-    name: 'demo',
-    level: bunyan.DEBUG,
-    src: true
-});
-
-// Create a client for retrieving data from backend services
-var client = restify.createJsonClient({
-    url: 'http://api-global.netflix.com/',
-    log: LOG.child({
-        component: 'server',
-        level: bunyan.INFO,
-        serializers: bunyan.stdSerializers
-    }),
-    version: '*'
-});
-
-// Function that returns a backend service responses as Promises
-function getJSON(url) {
-    return new Promise(function(accept, reject) {
-        client.get(
-            url,
-            // The client helpfully parses the JSON into obj
-            function (err, req, res, obj) {
-                if (err) {
-                    reject(err);
-                }
-                else {
-                    accept(obj);
-                }
-            });
-    });
-}
 
 // A router is a collection of routes, each of which contains operation handlers 
 // for the three DataSource operations (get, set, and call).
@@ -428,74 +386,13 @@ var NetflixRouterBase = Router.createClass([
     }
 ]);
 
+
 var NetflixRouter = function(userId) {
     NetflixRouterBase.call(this);
     this.userId = userId;
 };
-
 NetflixRouter.prototype = Object.create(NetflixRouterBase.prototype);
 
-var server = restify.createServer({
-    log: LOG.child({
-        component: 'server',
-        level: bunyan.INFO,
-        streams: [{
-            // This ensures that if we get a WARN or above all debug records
-            // related to that request are spewed to stderr - makes it nice
-            // filter out debug messages in prod, but still dump on user
-            // errors so you can debug problems
-            level: bunyan.DEBUG,
-            type: 'raw',
-            stream: new restify.bunyan.RequestCaptureStream({
-                level: bunyan.WARN,
-                maxRecords: 100,
-                maxRequestIds: 1000,
-                stream: process.stderr
-            })
-        }],
-        serializers: bunyan.stdSerializers
-    })
-});
-
-server.use(restify.requestLogger());
-server.use(restify.queryParser());
-server.use(restify.bodyParser({mapParams: true}));
-server.use(CookieParser.parse);
-
-
-server.on('after', restify.auditLogger({
-    log: LOG.child({
-        component: 'audit'
-    })
-}));
-
-
-server.on('uncaughtException', function (req, res, route, err) {
-    req.log.error(err, 'got uncaught exception');
-});
-
-server.post('/model.json', falcorPlugin(function (req, res, next) {
-    var cookies = req.cookies; // Gets read-only cookies from the request
-    return new NetflixRouter(cookies.userId);
-}));
-
-server.get('/model.json', falcorPlugin(function (req, res, next) {
-    var cookies = req.cookies; // Gets read-only cookies from the request  
-    return new NetflixRouter(cookies.userId);
-}));
-
-// Make sure to serve the index.html file
-server.get(/\/.*/, restify.serveStatic({
-  directory: __dirname,
-  default: 'index.html'
-}));
-
-server.listen(1001, function() {
-  var falcor = require("falcor");
-  var HttpDataSource = require("falcor-browser");
-  var model = new falcor.Model({
-      source: new HttpDataSource('http://localhost:1001/model.json')
-  });
-    
-  console.log('%s listening at %s', server.name, server.url);
-});
+module.exports = function(userId) {
+    return new NetflixRouter(userId);    
+}
