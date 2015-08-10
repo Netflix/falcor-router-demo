@@ -52,7 +52,7 @@ RatingService.prototype = {
                 var results = {};
                 getResponse.rows.forEach(function(response, index) {
                     if (setResponse[index].ok) {
-                        if (getResponse.rows[index].error) {
+                        if (getResponse.rows[index].doc == null || getResponse.rows[index].error) {
                             results[response.key.substr((userId + ",").length)] = {
                               id: setResponse[index].id,
                               key: setResponse[index].id,
