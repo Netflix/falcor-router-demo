@@ -115,7 +115,16 @@ var recommendationService = require('./recommendation-service');
 // The Router's eventual response is a JSONGraphEnvelope with the superset of
 // all of the individual route JSONGraphEnvelope responses.
 
-var NetflixRouterBase = Router.createClass([   
+var NetflixRouterBase = Router.createClass([
+    // Here's an example subset of the JSON Graph which this route simulates.
+    // {
+    //     titlesById: [
+    //         {
+    //             userRating: 5,
+    //             rating: 1.3
+    //         }
+    //     ]
+    // }
     {
         route: "titlesById[{integers:titleIds}]['userRating', 'rating']",
         get: function(pathSet) {
@@ -151,11 +160,19 @@ var NetflixRouterBase = Router.createClass([
                 });
         }
     },
+    // Here's an example subset of the JSON Graph which this route simulates.
+    // {
+    //     titlesById: [
+    //         {
+    //             userRating: 5
+    //         }
+    //     ]
+    // }    
     {
         route: "titlesById[{integers:titleIds}].userRating",
         set: function (jsonGraphArg) {
                 
-            if (this.userId === undefined)
+            if (this.userId == undefined)
                 throw new Error("not authorized");
 
             var titlesById = jsonGraphArg.titlesById,
@@ -196,7 +213,7 @@ var NetflixRouterBase = Router.createClass([
     {
         route: "genrelist[{integers:indices}].name",
         get: function (pathSet) {
-                        
+                                     
             // In this example, the pathSet could be ["genrelist", [0,1,2], "name"].
             // If that were the case, we would need to return a Promise of an
             // Array containing the following PathValues: 
@@ -228,6 +245,35 @@ var NetflixRouterBase = Router.createClass([
                 });
         }
     }, 
+    // Here's an example subset of the JSON Graph which this route simulates.
+    //  {
+    //      genrelist: {
+    //         myList: $ref('genreList[10]')]
+    //      }
+    //  }    
+    {
+        route: "genrelist.myList",
+        get: function(pathSet) {
+                
+            if (this.userId == undefined)
+                throw new Error("not authorized");
+                    
+            return recommendationService.
+                getGenreList(this.userId).
+                then(function(genrelist) {
+                    for (var i = 0, genreListLength = genrelist.length; i < genreListLength; i++) {
+                        if (genrelist[i].myList) {
+                            return [{
+                                path: ['genrelist', 'myList'],
+                                value: $ref(['genrelist', i])
+                            }]
+                        }
+                    }
+                    throw new Error("myList missing from genrelist")
+            })
+        }
+    },
+    
     // Here's an example subset of the JSON Graph which this route simulates.
     // {
     //     genrelist: [
@@ -287,9 +333,10 @@ var NetflixRouterBase = Router.createClass([
     // Unlike the other routes which return a Promise<Array<PathValue>>, this route returns a 
     // Promise<JSONGraphEnvelope>.
     {
+        //@TODO: convert from jsonGraph return type to pathValues return type.
         route: "titlesById[{integers:titleIds}]['name','year','description','boxshot']",
         get: function (pathSet) {
-            
+               
             // Unlike the other routes which return Promise<Array<PathValue>>, this route will 
             // return a Promise<JSONGraphEnvelope>.
             // For example if the matched pathSet is ["titlesById", [923,619], "year", "rating"], 
@@ -309,34 +356,42 @@ var NetflixRouterBase = Router.createClass([
             //    }
             // }
 
-            var titleKeys = pathSet[2];
             return titleService.getTitles(pathSet.titleIds).
                 then(function(titles) {
-                    var response = {};
-                    var jsonGraphResponse = response['jsonGraph'] = {};                    
-                    var titlesById = jsonGraphResponse['titlesById'] = {};
+                    return pathSet.titleIds.map(function(titleId) {
+                        return pathSet[2].map(function(key) {
+                            var titleRecord = titles[titleId];
 
-                    pathSet.titleIds.forEach(function(titleId) {
-                        var responseTitle = titles[titleId],
-                            title = {};
-                            
-                        if (responseTitle.error) {
-                            titlesById[titleId] = $error(responseTitle.error);
-                        } else if (responseTitle.doc == null) {
-                            titlesById[titleId] = jsonGraph.undefined();
-                        } else {
-                            titleKeys.forEach(function(key) {
-                                title[key] = responseTitle.doc[key];
-                            });
-                            titlesById[titleId] = title;
-                        }
+                            if (titleRecord.error) {
+                                return {
+                                    path: ['titlesById', titleId, key],
+                                    value: $error(titleRecord.error)
+                                };                            
+                            } else if (titleRecord.doc) {
+                                return {
+                                    path: ['titlesById', titleId, key], 
+                                    value: titleRecord.doc[key]
+                                };
+                            } else {
+                                return {
+                                    path: ['titlesById', titleId],
+                                    value: undefined
+                                };
+                            }
+                             
+                        });
+                    }).reduce(function(x, xs) {
+                        return x.concat(xs);
                     });
-
-                    return response;
-                });
-            
+                })            
         }
     },
+    // Here's an example subset of the JSON Graph which this route simulates.
+    // {
+    //     genrelist: {
+    //          length: 26
+    //     }
+    // }
     {
         route: 'genrelist.length',
         get: function(pathSet) {
@@ -348,7 +403,18 @@ var NetflixRouterBase = Router.createClass([
                     };
                 });
         }
-    },    
+    },  
+
+    // Here's an example subset of the JSON Graph which this route simulates.
+    // {
+    //     genrelist: [
+    //         {
+    //             titles: {
+    //                 length: 5
+    //             }
+    //         }
+    //     ]
+    // }
     {
         route: 'genrelist[{integers:indices}].titles.length',
         get: function(pathSet) {               
@@ -368,7 +434,18 @@ var NetflixRouterBase = Router.createClass([
                     });
                 });
         }
-    },    
+    },
+    
+    // Here's an example subset of the JSON Graph which this route simulates.
+    // {
+    //     genrelist: [
+    //         {
+    //             titles: {
+    //                 remove: function() {}
+    //             }
+    //         }
+    //     ]
+    // }      
     {
         route: 'genrelist[{integers:indices}].titles.remove',
         call: function(callPath, args) {
@@ -394,6 +471,17 @@ var NetflixRouterBase = Router.createClass([
                 });
         }
     },
+
+    // Here's an example subset of the JSON Graph which this route simulates.
+    // {
+    //     genrelist: [
+    //         {
+    //             titles: {
+    //                 push: function() {}
+    //             }
+    //         }
+    //     ]
+    // }
     {
         route: 'genrelist[{integers:indices}].titles.push',
         call: function(callPath, args) {
