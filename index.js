@@ -25,7 +25,7 @@ with the following structure:
     }
 }
 
-It is hosted at a single URL (model.json) using Restify.
+It is intended to be hosted at a single URL (model.json).
 
 ********** IMPORTANT ****************
 
@@ -58,7 +58,6 @@ var Promise = require('promise');
 
 var jsonGraph = require('falcor-json-graph');
 var $ref = jsonGraph.ref;
-var $atom = jsonGraph.atom;
 var $error = jsonGraph.error;
 
 var ratingService = require('./rating-service');
@@ -208,14 +207,11 @@ var NetflixRouterBase = Router.createClass([
                 then(function(genrelist) {
                     // use the indices alias to retrieve the array (equivalent to pathSet[1])             
                     return pathSet.indices.map(function(index) {
-                        // If we determine that the index does not exist, we must 
-                        // return an atom of undefined. Returning nothing is _not_
-                        // an acceptable response. 
-                        // Note that we are also specific about what part of the
-                        // JSON is null. We clearly respond that the 
-                        // list is null or undefined, _not_ the name of the list.
                         var list = genrelist[index];
 
+                        // If we determine that there is no genre at the index, we must
+                        // be specific and return that it is the genre that is not 
+                        // present and not the name of the genre.
                         if (list == null) {
                             return { path: ["genrelist", index], value: list };
                         }
@@ -248,6 +244,9 @@ var NetflixRouterBase = Router.createClass([
                     pathSet.indices.forEach(function (index) {
                         var genre = genrelist[index]
                         
+                        // If we determine that there is no genre at the index, we must
+                        // be specific and return that it is the genre that is not 
+                        // present and not the name of the genre.
                         if (genre == null) {
                             pathValues.push({
                                 path: ['genrelist', index],
@@ -256,6 +255,7 @@ var NetflixRouterBase = Router.createClass([
                         } else {
                             pathSet.titleIndices.forEach(function(titleIndex) {
                                 var titleID = genrelist[index].titles[titleIndex];
+
                                 if (titleID == null) {
                                     pathValues.push({ path: ["genrelist", index, "titles", titleIndex], value: titleID });
                                 }
@@ -322,7 +322,17 @@ var NetflixRouterBase = Router.createClass([
                             
                         if (responseTitle.error) {
                             titlesById[titleId] = $error(responseTitle.error);
-                        } else if (responseTitle.doc == null) {
+                        } 
+                        // If we determine that there is no title at the ID
+                        // be specific and return that it is the genre that is not 
+                        // present and not the name of the genre.
+                        // When returning a JSON Graph Envelope, we must create an
+                        // atom explicitly so that the Router can detect the
+                        // difference between a value that the route simply neglected
+                        // to provide, and an explicit signal that a value is undefined.
+                        // The jsonGraph.undefined() function below creates an 
+                        // { $type: "atom", value: undefined }.
+                        else if (responseTitle.doc == null) {
                             titlesById[titleId] = jsonGraph.undefined();
                         } else {
                             titleKeys.forEach(function(key) {
@@ -358,9 +368,13 @@ var NetflixRouterBase = Router.createClass([
                     return pathSet.indices.map(function(index) {
                         var list = genrelist[index];
                         
+                        // If we determine that there is no genre at the index, we must
+                        // be specific and return that it is the genre that is not 
+                        // present and not the name of the genre.                        
                         if (list == null) {
                             return { path: ["genrelist", index], value: list };
                         }
+                        
                         return {
                             path: ['genrelist', index, 'titles', 'length'],
                             value: list.titles.length
