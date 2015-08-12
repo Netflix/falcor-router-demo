@@ -8,7 +8,6 @@ function RatingService() {}
 RatingService.prototype = {
 
     getRatings: function(userId, titleIds) {
-        
         return ratingsDB.allDocs({
             keys: titleIds.map(function(id) {
                 return userId + "," + id;
@@ -17,7 +16,17 @@ RatingService.prototype = {
         }).then(function(dbResponse) {
             var ratings = {};
             dbResponse.rows.forEach(function(row) {
-                ratings[row.key.substr((userId + ",").length)] = row;
+				if (row.error) {
+					if (row.error == "not_found") {
+						ratings[row.key.substr((userId + ",").length)] = {doc: null};
+					} else {
+						ratings[row.key.substr((userId + ",").length)] = {error: row.error};
+					}
+				} else if (row.doc) {
+                    ratings[row.key.substr((userId + ",").length)] = row;					
+				} else {
+					ratings[row.key.substr((userId + ",").length)] = {doc: null};
+				}                
             });
             return ratings;
         });
@@ -42,16 +51,23 @@ RatingService.prototype = {
             }),
             include_docs: true
         }).then(function(getResponse) {
-            return ratingsDB.bulkDocs(ids.map(function(id, index) {
-                return {
-                    _id: userId + "," + id,
-                    _rev: (!getResponse.rows[index].error ? getResponse.rows[index].value.rev : undefined),
-                    rating: coerce(titlesIdsAndRating[id].userRating)
-                };
-            })).then(function(setResponse) {
+            return ratingsDB.bulkDocs(
+                ids.filter(function(id, index) {
+                    return !(getResponse.rows[index].doc == null || getResponse.rows[index].error == "not_found");
+                }).map(function(id, index) {
+                    return {
+                        _id: userId + "," + id,
+                        _rev: (!getResponse.rows[index].error ? getResponse.rows[index].value.rev : undefined),
+                        userRating: coerce(titlesIdsAndRating[id].userRating)
+                    };
+                })
+            ).then(function(setResponse) {
+                
                 var results = {};
                 getResponse.rows.forEach(function(response, index) {
-                    if (setResponse[index].ok) {
+                    if (!setResponse[index]) {
+                        results[response.key.substr((userId + ",").length)] = {doc: null};
+                    } else if (setResponse[index].ok) {
                         if (getResponse.rows[index].doc == null || getResponse.rows[index].error) {
                             results[response.key.substr((userId + ",").length)] = {
                               id: setResponse[index].id,
@@ -60,16 +76,17 @@ RatingService.prototype = {
                                  rev: setResponse[index].rev
                               },
                               doc: {
-                                 rating: coerce(titlesIdsAndRating[response.key.substr((userId + ",").length)].userRating),
+                                 userRating: coerce(titlesIdsAndRating[response.key.substr((userId + ",").length)].userRating),
                                  _id: setResponse[index].id,
                                  _rev: setResponse[index].rev
                               }
                            };
                         } else {
+                            response.doc.userRating = coerce(titlesIdsAndRating[response.key.substr((userId + ",").length)].userRating);
                             results[response.key.substr((userId + ",").length)] = response;
                         }
                     } else {
-                        results[response.key.substr((userId + ",").length)] = setResponse[index];
+                        results[response.key.substr((userId + ",").length)] = {error: setResponse[index].message};
                     }
                 });
                 return results;

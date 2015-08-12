@@ -117,68 +117,74 @@ var recommendationService = require('./recommendation-service');
 
 var NetflixRouterBase = Router.createClass([   
     {
-        route: "titlesById[{integers:titleIds}].userRating",
+        route: "titlesById[{integers:titleIds}]['userRating', 'rating']",
         get: function(pathSet) {
-
-            if (this.userId === undefined)
-                throw new Error("not authorized");
-
-            return Promise.all([
-                titleService.getTitles(pathSet.titleIds),
-                ratingService.getRatings(this.userId, pathSet.titleIds)
-            ]).then(function(results) {
-                var titles = results[0]
-                var ratings = results[1]
-                return pathSet.titleIds.map(function(titleId) {
-                    var titleRecord = titles[titleId]
-                    var ratingRecord = ratings[titleId]
-                    if (titleRecord.doc == null || titleRecord.error == "not_found") {
-                        return {
-                            path: ['titlesById', titleId],
-                            value: jsonGraph.undefined()
-                        };    
-                    } else if (ratingRecord.doc) {
-                        return {
-                            path: ['titlesById', titleId, 'userRating'], 
-                            value: ratingRecord.doc.rating
-                        };
-                   } else if (!ratings[titleId].error || ratings[titleId].error == "not_found") {
-                        return {
-                            path: ['titlesById', titleId, 'userRating'],
-                            value: jsonGraph.undefined()
-                        };
-                    } else {
-                        return {
-                            path: ['titlesById', titleId, 'userRating'],
-                            value: $error(ratingRecord.error)
-                        };
-                    };
-
-                })
-            })
-        },
-        
+            var userId = this.userId;
+                        
+            return ratingService.getRatings(userId || 'all', pathSet.titleIds).
+                then(function(ratings) {
+                    return pathSet.titleIds.map(function(titleId) {
+                        return pathSet[2].map(function(key) {
+                            var ratingRecord = ratings[titleId];
+                            
+                            if (!userId && key == "userRating") {
+                                return {
+                                    path: ['titlesById', titleId, 'userRating'],
+                                    value: jsonGraph.undefined()
+                                };                            
+                            } else if (ratingRecord.error) {
+                                return {
+                                    path: ['titlesById', titleId, key],
+                                    value: $error(ratingRecord.error)
+                                };                            
+                            } else if (ratingRecord.doc) {
+                                return {
+                                    path: ['titlesById', titleId, key], 
+                                    value: ratingRecord.doc[key]
+                                };
+                            } else {
+                                return {
+                                    path: ['titlesById', titleId, key],
+                                    value: jsonGraph.undefined()
+                                };
+                            }
+                             
+                        });
+                    }).reduce(function(x, xs) {
+                        return x.concat(xs);
+                    });
+                });
+        }
+    },
+    {
+        route: "titlesById[{integers:titleIds}].userRating",
         set: function (jsonGraphArg) {
     
             if (this.userId === undefined)
                 throw new Error("not authorized");
 
-            var ids = Object.keys(jsonGraphArg.titlesById);                        
+            var ids = Object.keys(jsonGraphArg.titlesById);
+                        
             return ratingService.setRatings(this.userId, jsonGraphArg.titlesById).
-                then(function(ratings) {                     
+                then(function(ratings) {
                     return ids.map(function(id) {
-                        if (!ratings[id].error) {
-                            return {
-                                path: ['titlesById', id, 'userRating'],
-                                value: ratings[id].doc.rating
-                            };
-                        } else {
-                            return {
-                                path: ['titlesById', id],
-                                value: $error(ratings[id].message) 
-                            };
-                        }
-                    });    
+                            if (ratings[id].error) {
+                                return {
+                                    path: ['titlesById', id],
+                                    value: $error(ratings[id].error) 
+                                };
+                            } else if (ratings[id].doc) {
+                                return {
+                                    path: ['titlesById', id, 'userRating'],
+                                    value: ratings[id].doc.userRating
+                                };                          
+                            } else {
+                                return {
+                                    path: ['titlesById', id],
+                                    value: jsonGraph.undefined() 
+                                };                                      
+                            }
+                        });
                 });
         }
     },
@@ -276,7 +282,7 @@ var NetflixRouterBase = Router.createClass([
     // Unlike the other routes which return a Promise<Array<PathValue>>, this route returns a 
     // Promise<JSONGraphEnvelope>.
     {
-        route: "titlesById[{integers:titleIds}]['name','year','description','boxshot','rating']",
+        route: "titlesById[{integers:titleIds}]['name','year','description','boxshot']",
         get: function (pathSet) {
             
             // Unlike the other routes which return Promise<Array<PathValue>>, this route will 
@@ -308,17 +314,19 @@ var NetflixRouterBase = Router.createClass([
                     pathSet.titleIds.forEach(function(titleId) {
                         var responseTitle = titles[titleId],
                             title = {};
-                        if (responseTitle.error == "not_found") {
-                            titlesById[titleId] = jsonGraph.undefined();
-                        } else if (responseTitle.error) {
+                            
+                        if (responseTitle.error) {
                             titlesById[titleId] = $error(responseTitle.error);
-                        } else {
+                        } else if (responseTitle.doc) {
                             titleKeys.forEach(function(key) {
                                 title[key] = responseTitle.doc[key];
                             });
                             titlesById[titleId] = title;
+                        } else {
+                            titlesById[titleId] = jsonGraph.undefined();
                         }
                     });
+
                     return response;
                 });
             
@@ -425,4 +433,4 @@ NetflixRouter.prototype = Object.create(NetflixRouterBase.prototype);
 
 module.exports = function(userId) {
     return new NetflixRouter(userId);    
-}
+};

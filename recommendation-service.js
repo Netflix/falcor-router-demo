@@ -8,7 +8,7 @@ var batch = require('./batch');
 function RecommendationsService() {}
 RecommendationsService.prototype = {
     getGenreList: function(userId) {
-        userId = (userId || 'all').toString()
+        userId = (userId || 'all').toString();
         
         var getGenreLists = batch(function(userIds) {
             return recommendationsDB.allDocs({
@@ -29,7 +29,7 @@ RecommendationsService.prototype = {
     },
     
 	addTitleToGenreList: function(userId, genreIndex, titleId) {
-        userId = userId.toString()        
+        userId = userId.toString();        
         return recommendationsDB.get(userId)
             .then(function(response) {
                 var titlesLength = response.recommendations[genreIndex].titles.push(titleId);
@@ -44,7 +44,7 @@ RecommendationsService.prototype = {
 	},
     
     removeTitleFromGenreListByIndex: function(userId, genreIndex, titleIndex) {
-        userId = userId.toString()
+        userId = userId.toString();
         return recommendationsDB.get(userId)
             .then(function(response) {
                 var removedTitleId = response.recommendations[genreIndex].titles.splice(titleIndex, 1)[0];
