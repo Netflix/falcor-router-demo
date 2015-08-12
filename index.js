@@ -120,19 +120,14 @@ var NetflixRouterBase = Router.createClass([
         route: "titlesById[{integers:titleIds}]['userRating', 'rating']",
         get: function(pathSet) {
             var userId = this.userId;
-                        
-            return ratingService.getRatings(userId || 'all', pathSet.titleIds).
+
+            return ratingService.getRatings(pathSet.titleIds, userId).
                 then(function(ratings) {
                     return pathSet.titleIds.map(function(titleId) {
                         return pathSet[2].map(function(key) {
                             var ratingRecord = ratings[titleId];
-                            
-                            if (!userId && key == "userRating") {
-                                return {
-                                    path: ['titlesById', titleId, 'userRating'],
-                                    value: jsonGraph.undefined()
-                                };                            
-                            } else if (ratingRecord.error) {
+
+                            if (ratingRecord.error) {
                                 return {
                                     path: ['titlesById', titleId, key],
                                     value: $error(ratingRecord.error)
@@ -144,8 +139,8 @@ var NetflixRouterBase = Router.createClass([
                                 };
                             } else {
                                 return {
-                                    path: ['titlesById', titleId, key],
-                                    value: jsonGraph.undefined()
+                                    path: ['titlesById', titleId],
+                                    value: undefined
                                 };
                             }
                              
@@ -159,32 +154,33 @@ var NetflixRouterBase = Router.createClass([
     {
         route: "titlesById[{integers:titleIds}].userRating",
         set: function (jsonGraphArg) {
-    
+                
             if (this.userId === undefined)
                 throw new Error("not authorized");
 
-            var ids = Object.keys(jsonGraphArg.titlesById);
+            var titlesById = jsonGraphArg.titlesById,
+                ids = Object.keys(titlesById);
                         
-            return ratingService.setRatings(this.userId, jsonGraphArg.titlesById).
+            return ratingService.setRatings(this.userId, titlesById).
                 then(function(ratings) {
                     return ids.map(function(id) {
-                            if (ratings[id].error) {
-                                return {
-                                    path: ['titlesById', id],
-                                    value: $error(ratings[id].error) 
-                                };
-                            } else if (ratings[id].doc) {
-                                return {
-                                    path: ['titlesById', id, 'userRating'],
-                                    value: ratings[id].doc.userRating
-                                };                          
-                            } else {
-                                return {
-                                    path: ['titlesById', id],
-                                    value: jsonGraph.undefined() 
-                                };                                      
-                            }
-                        });
+                        if (ratings[id].error) {
+                            return {
+                                path: ['titlesById', id],
+                                value: $error(ratings[id].error) 
+                            };
+                        } else if (ratings[id].doc) {
+                            return {
+                                path: ['titlesById', id, 'userRating'],
+                                value: ratings[id].doc.userRating
+                            };                          
+                        } else {
+                            return {
+                                path: ['titlesById', id],
+                                value: undefined 
+                            };                                      
+                        }
+                    });
                 });
         }
     },
@@ -194,7 +190,7 @@ var NetflixRouterBase = Router.createClass([
     //     genrelist: [
     //         {
     //             name: "Thrillers"
-    //         },
+    //         }
     //     ]
     // }
     {
@@ -207,8 +203,9 @@ var NetflixRouterBase = Router.createClass([
             // {path: ["genreList", 0, "name"], value: "Horror"}
             // {path: ["genreList", 1, "name"], value: "Thrillers"}
             // {path: ["genreList", 2, "name"], value: "New Releases"}
-            return recommendationService.getGenreList(this.userId)
-                .then(function(genrelist) {
+            return recommendationService.
+                getGenreList(this.userId).
+                then(function(genrelist) {
                     // use the indices alias to retrieve the array (equivalent to pathSet[1])             
                     return pathSet.indices.map(function(index) {
                         // If we determine that the index does not exist, we must 
@@ -217,11 +214,10 @@ var NetflixRouterBase = Router.createClass([
                         // Note that we are also specific about what part of the
                         // JSON is null. We clearly respond that the 
                         // list is null or undefined, _not_ the name of the list.
-                        var list = genrelist[index],
-                            results = [];
+                        var list = genrelist[index];
 
                         if (list == null) {
-                            return { path: ["genrelist", index], value: $atom(list)};
+                            return { path: ["genrelist", index], value: list };
                         }
 
                         return {
@@ -245,23 +241,32 @@ var NetflixRouterBase = Router.createClass([
     {
         route: "genrelist[{integers:indices}].titles[{integers:titleIndices}]",
         get: function (pathSet) {
-            return recommendationService.getGenreList(this.userId).
+            return recommendationService.
+                getGenreList(this.userId).
                 then(function(genrelist) {
-                   
                     var pathValues = [];
                     pathSet.indices.forEach(function (index) {
-                        pathSet.titleIndices.forEach(function(titleIndex) {
-                            var titleID = genrelist[index].titles[titleIndex];
-                            if (titleID == null) {
-                                pathValues.push({ path: ["genrelist", index, "titles", titleIndex], value: $atom(titleID) });
-                            }
-                            else {
-                                pathValues.push({
-                                    path: ['genrelist', index, 'titles', titleIndex],
-                                    value: $ref(['titlesById', titleID])
-                                });
-                            }
-                        });
+                        var genre = genrelist[index]
+                        
+                        if (genre == null) {
+                            pathValues.push({
+                                path: ['genrelist', index],
+                                value: genre
+                            })
+                        } else {
+                            pathSet.titleIndices.forEach(function(titleIndex) {
+                                var titleID = genrelist[index].titles[titleIndex];
+                                if (titleID == null) {
+                                    pathValues.push({ path: ["genrelist", index, "titles", titleIndex], value: titleID });
+                                }
+                                else {
+                                    pathValues.push({
+                                        path: ['genrelist', index, 'titles', titleIndex],
+                                        value: $ref(['titlesById', titleID])
+                                    });
+                                }
+                            });
+                        }
                     });
                     return pathValues;
                 });
@@ -317,13 +322,13 @@ var NetflixRouterBase = Router.createClass([
                             
                         if (responseTitle.error) {
                             titlesById[titleId] = $error(responseTitle.error);
-                        } else if (responseTitle.doc) {
+                        } else if (responseTitle.doc == null) {
+                            titlesById[titleId] = jsonGraph.undefined();
+                        } else {
                             titleKeys.forEach(function(key) {
                                 title[key] = responseTitle.doc[key];
                             });
                             titlesById[titleId] = title;
-                        } else {
-                            titlesById[titleId] = jsonGraph.undefined();
                         }
                     });
 
@@ -335,7 +340,6 @@ var NetflixRouterBase = Router.createClass([
     {
         route: 'genrelist.length',
         get: function(pathSet) {
-               
             return recommendationService.getGenreList(this.userId)
                 .then(function(genrelist) {             
                     return {
@@ -347,15 +351,15 @@ var NetflixRouterBase = Router.createClass([
     },    
     {
         route: 'genrelist[{integers:indices}].titles.length',
-        get: function(pathSet) {
-               
-            return recommendationService.getGenreList(this.userId)
-                .then(function(genrelist) {             
+        get: function(pathSet) {               
+            return recommendationService.
+                getGenreList(this.userId).
+                then(function(genrelist) {             
                     return pathSet.indices.map(function(index) {
                         var list = genrelist[index];
                         
                         if (list == null) {
-                            return { path: ["genrelist", index, 'titles', 'length'], value: $atom(list)};
+                            return { path: ["genrelist", index], value: list };
                         }
                         return {
                             path: ['genrelist', index, 'titles', 'length'],
@@ -397,11 +401,13 @@ var NetflixRouterBase = Router.createClass([
             if (this.userId == undefined)
                 throw new Error("not authorized");
 
+            // validating that argument to add to the list is a reference to an item in the titlesById map:
             var titleRef = args[0], titleId, genreIndex = callPath.indices[0];
             if (titleRef == null || titleRef.$type !== "ref" || titleRef.value[0] != "titlesById" || titleRef.value.length !== 2) {
                 throw new Error("invalid input");
             }
-            
+
+            // retrieving the title id from the reference path:            
             titleId = titleRef.value[1];
             if (parseInt(titleId, 10).toString() !== titleId.toString())
                 throw new Error("invalid input");

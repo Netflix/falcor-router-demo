@@ -7,7 +7,9 @@ var ratingsDB = new PouchDB(path.join(__dirname, 'ratings_db'));
 function RatingService() {}
 RatingService.prototype = {
 
-    getRatings: function(userId, titleIds) {
+    getRatings: function(titleIds, userId) {
+        userId = userId || 'all';
+        
         return ratingsDB.allDocs({
             keys: titleIds.map(function(id) {
                 return userId + "," + id;
