@@ -131,31 +131,33 @@ var NetflixRouterBase = Router.createClass([
 
             return ratingService.getRatings(pathSet.titleIds, userId).
                 then(function(ratings) {
-                    return pathSet.titleIds.map(function(titleId) {
-                        return pathSet[2].map(function(key) {
+                    var results = [];
+                    
+                    pathSet.titleIds.forEach(function(titleId) {
+                        pathSet[2].forEach(function(key) {
                             var ratingRecord = ratings[titleId];
 
                             if (ratingRecord.error) {
-                                return {
+                                results.push({
                                     path: ['titlesById', titleId, key],
                                     value: $error(ratingRecord.error)
-                                };                            
+                                });
                             } else if (ratingRecord.doc) {
-                                return {
+                                results.push({
                                     path: ['titlesById', titleId, key], 
                                     value: ratingRecord.doc[key]
-                                };
+                                });
                             } else {
-                                return {
+                                results.push({
                                     path: ['titlesById', titleId],
                                     value: undefined
-                                };
+                                });
                             }
                              
                         });
-                    }).reduce(function(x, xs) {
-                        return x.concat(xs);
                     });
+                    
+                    return results;
                 });
         }
     },
@@ -262,11 +264,11 @@ var NetflixRouterBase = Router.createClass([
                             return [{
                                 path: ['genrelist', 'myList'],
                                 value: $ref(['genrelist', i])
-                            }]
+                            }];
                         }
                     }
-                    throw new Error("myList missing from genrelist")
-            })
+                    throw new Error("myList missing from genrelist");
+            });
         }
     },
     
@@ -288,7 +290,7 @@ var NetflixRouterBase = Router.createClass([
                 then(function(genrelist) {
                     var pathValues = [];
                     pathSet.indices.forEach(function (index) {
-                        var genre = genrelist[index]
+                        var genre = genrelist[index];
                         
                         // If we determine that there is no genre at the index, we must
                         // be specific and return that it is the genre that is not 
@@ -297,7 +299,7 @@ var NetflixRouterBase = Router.createClass([
                             pathValues.push({
                                 path: ['genrelist', index],
                                 value: genre
-                            })
+                            });
                         } else {
                             pathSet.titleIndices.forEach(function(titleIndex) {
                                 var titleID = genrelist[index].titles[titleIndex];
@@ -357,31 +359,33 @@ var NetflixRouterBase = Router.createClass([
 
             return titleService.getTitles(pathSet.titleIds).
                 then(function(titles) {
-                    return pathSet.titleIds.map(function(titleId) {
-                        return pathSet[2].map(function(key) {
+                    var results = [];
+                    
+                    pathSet.titleIds.forEach(function(titleId) {
+                        pathSet[2].forEach(function(key) {
                             var titleRecord = titles[titleId];
 
                             if (titleRecord.error) {
-                                return {
+                                results.push({
                                     path: ['titlesById', titleId, key],
                                     value: $error(titleRecord.error)
-                                };                            
+                                });
                             } else if (titleRecord.doc) {
-                                return {
+                                results.push({
                                     path: ['titlesById', titleId, key], 
                                     value: titleRecord.doc[key]
-                                };
+                                });
                             } else {
-                                return {
+                                results.push({
                                     path: ['titlesById', titleId],
                                     value: undefined
-                                };
+                                });
                             }
                         });
-                    }).reduce(function(x, xs) {
-                        return x.concat(xs);
                     });
-                })            
+                    
+                    return results;
+                });            
         }
     },
     // Here's an example subset of the JSON Graph which this route simulates.

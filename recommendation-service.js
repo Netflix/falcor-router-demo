@@ -33,7 +33,7 @@ RecommendationsService.prototype = {
         return recommendationsDB.get(userId)
             .then(function(response) {
                 if (!response.recommendations[genreIndex]) {
-                    return Promise.reject(new Error("genrelist does not exist at index " + genreIndex))
+                    return Promise.reject(new Error("genrelist does not exist at index " + genreIndex));
                 } 
                 var titlesLength = response.recommendations[genreIndex].titles.push(titleId);
                 return recommendationsDB.put({
@@ -51,7 +51,7 @@ RecommendationsService.prototype = {
         return recommendationsDB.get(userId)
             .then(function(response) {
                 if (!response.recommendations[genreIndex]) {
-                    return Promise.reject(new Error("genrelist does not exist at index " + genreIndex))
+                    return Promise.reject(new Error("genrelist does not exist at index " + genreIndex));
                 }                
                 var removedTitleId = response.recommendations[genreIndex].titles.splice(titleIndex, 1)[0];
                 return recommendationsDB.put({
