@@ -12,8 +12,8 @@
     "promise": "^7.0.3",
     "rx": "2.5.3",
     "pouchdb": "~3.6.0",
-    "falcor": "git+ssh://git@github.com/Netflix/falcor.git",
-    "falcor-json-graph": "git+ssh://git@github.com/Netflix/falcor-json-graph.git"
+    "falcor": "0.1.2",
+    "falcor-json-graph": "1.1.0"
   },
   "repository": {
     "type": "git",
