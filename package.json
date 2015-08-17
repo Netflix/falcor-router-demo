@@ -1,7 +1,7 @@
 {
   "name": "falcor-router-demo",
   "version": "1.0.2",
-  "description": "",
+  "description": "A sample Router for a Netflix-like Application.",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
