@@ -8,12 +8,12 @@
     "start": "node index.js 2>&1"
   },
   "dependencies": {
-    "falcor": "0.1.2",
-    "falcor-json-graph": "1.1.0",
-    "falcor-router": "^0.2.8",
+    "falcor": "~0.1.12",
+    "falcor-json-graph": "~1.1.5",
+    "falcor-router": "~0.2.9",
     "pouchdb": "~3.6.0",
-    "promise": "^7.0.3",
-    "rx": "2.5.3"
+    "promise": "^7.0.4",
+    "rx": "~2.5.3"
   },
   "repository": {
     "type": "git",
