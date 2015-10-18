@@ -4,12 +4,10 @@ var path = require('path');
 var ratingsDB = new PouchDB(path.join(__dirname, 'ratings_db'));
 
 // ratings service
-function RatingService() {}
-RatingService.prototype = {
-
+module.exports = {
     getRatings: function(titleIds, userId) {
         userId = userId || 'all';
-        
+
         return ratingsDB.allDocs({
             keys: titleIds.map(function(id) {
                 return userId + "," + id;
@@ -25,17 +23,17 @@ RatingService.prototype = {
 						ratings[row.key.substr((userId + ",").length)] = {error: row.error};
 					}
 				} else if (row.doc) {
-                    ratings[row.key.substr((userId + ",").length)] = row;					
+                    ratings[row.key.substr((userId + ",").length)] = row;
 				} else {
 					ratings[row.key.substr((userId + ",").length)] = {doc: null};
-				}                
+				}
             });
             return ratings;
         });
 	},
-    
-    setRatings: function(userId, titlesIdsAndRating) {        
-		
+
+    setRatings: function(userId, titlesIdsAndRating) {
+
         function coerce(rating) {
             if (rating > 5)
             	return 5;
@@ -64,7 +62,7 @@ RatingService.prototype = {
                     };
                 })
             ).then(function(setResponse) {
-                
+
                 var results = {};
                 getResponse.rows.forEach(function(response, index) {
                     if (!setResponse[index]) {
@@ -93,8 +91,6 @@ RatingService.prototype = {
                 });
                 return results;
             });
-        });	
+        });
 	}
 };
-
-module.exports = new RatingService();
