@@ -4,8 +4,7 @@ var path = require('path');
 var titlesDB = new PouchDB(path.join(__dirname, 'titles_db'));
 
 // titles service
-function TitleService() {}
-TitleService.prototype = {
+module.exports = {
 	getTitles: batch(function(titleIds) {
         return titlesDB.allDocs({
             keys: titleIds.map(function(x) { return x.toString(); }),
@@ -20,7 +19,7 @@ TitleService.prototype = {
 						titles[row.key] = {error: row.error};
 					}
 				} else if (row.doc) {
-					titles[row.key] = row;					
+					titles[row.key] = row;
 				} else {
 					titles[row.key] = {doc: null};
 				}
@@ -29,5 +28,3 @@ TitleService.prototype = {
 		});
 	})
 };
-
-module.exports = new TitleService();
