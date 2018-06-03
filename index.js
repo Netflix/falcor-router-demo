@@ -323,40 +323,17 @@ var NetflixRouterBase = Router.createClass([
     // This route simulates the following subset of the JSON Graph object.
     // {
     //     titlesById: {
-    //         [{integers}]: {
-    //            "title":"Blitz",
+    //         "8": {
+    //            "name":"Blitz",
     //            "year":2011,
     //            "description":"With a serial killer on the loose in London, a detective takes on the case while working out his aggression issues with a police-appointed shrink.",
-    //            "rating":1.7,
     //            "boxshot":"http://cdn.test.nflximg.net/images/9236/1919236.jpg"
     //         }
     //     }
     // }
-    // Unlike the other routes which return a Promise<Array<PathValue>>, this route returns a 
-    // Promise<JSONGraphEnvelope>.
     {
         route: "titlesById[{integers:titleIds}]['name','year','description','boxshot']",
         get: function (pathSet) {
-               
-            // Unlike the other routes which return Promise<Array<PathValue>>, this route will 
-            // return a Promise<JSONGraphEnvelope>.
-            // For example if the matched pathSet is ["titlesById", [923,619], "year", "rating"], 
-            // the JSONGraph response from the route handler might look like this:
-            // {
-            //    jsonGraph: {
-            //        titlesById: {
-            //            923: {
-            //                "year": 2001,
-            //                "rating": 5
-            //            },
-            //            619: {
-            //                "year": 2013,
-            //                "rating": 3
-            //            }            
-            //        }
-            //    }
-            // }
-
             return titleService.getTitles(pathSet.titleIds).
                 then(function(titles) {
                     var results = [];
